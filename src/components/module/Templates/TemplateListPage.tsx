@@ -22,9 +22,9 @@ import {
 } from "@/components/ui/dialog";
 
 export function TemplateListPage() {
-  const { user } = useAuth();
+  const { user, isLoading: isAuthLoading } = useAuth();
   const [templates, setTemplates] = useState<BookTemplate[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
 
   // Delete Template State
   const [templateToDelete, setTemplateToDelete] = useState<BookTemplate | null>(null);
@@ -46,8 +46,9 @@ export function TemplateListPage() {
   };
 
   useEffect(() => {
-    if (user) fetchTemplates();
-  }, [user]);
+    if (!isAuthLoading && user) fetchTemplates();
+    else if (!isAuthLoading && !user) setIsLoading(false);
+  }, [user, isAuthLoading]);
 
   const handleDelete = async () => {
     if (!templateToDelete) return;
@@ -89,7 +90,7 @@ export function TemplateListPage() {
       </div>
 
       {/* ── Content ─────────────────────────────────────────── */}
-      {isLoading ? (
+      {isAuthLoading || isLoading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
           {Array.from({ length: 6 }).map((_, i) => (
             <Skeleton key={i} className="h-48 rounded-2xl" />
