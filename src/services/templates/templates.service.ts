@@ -44,7 +44,9 @@ export const templatesService = {
     if (params?.page) qs.append("page", String(params.page));
     if (params?.limit) qs.append("limit", String(params.limit));
     
-    return clientFetch.get<ApiResponse<BookTemplate[]>>(`/templates?${qs.toString()}`);
+    const queryString = qs.toString();
+    const url = queryString ? `/templates?${queryString}` : '/templates';
+    return clientFetch.get<ApiResponse<BookTemplate[]>>(url);
   },
 
   getTemplateById: (id: string) =>

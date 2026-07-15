@@ -52,6 +52,7 @@ async function apiFetch<T>(
     ...restOptions,
     headers,
     credentials: 'include', // Send refresh token cookie automatically
+    cache: 'no-store', // Prevent aggressive browser/Next.js caching of dynamic API data
   });
 
   // Handle 401 — attempt refresh once

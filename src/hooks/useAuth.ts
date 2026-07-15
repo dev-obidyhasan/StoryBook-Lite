@@ -40,7 +40,8 @@ export function useAuth() {
           tokenStore.clear();
           setUser(null);
         }
-      } catch {
+      } catch (err) {
+        console.error("useAuth init error:", err);
         tokenStore.clear();
         setUser(null);
       } finally {
