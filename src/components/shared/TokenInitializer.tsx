@@ -65,7 +65,7 @@ export function TokenInitializer({ children }: { children: React.ReactNode }) {
     // Loading skeleton — matches the page layout to avoid layout shift
     return (
       <div className="flex-1 p-6">
-        <div className="space-y-4 animate-pulse max-w-5xl">
+        <div className="space-y-4 animate-pulse w-full">
           <div className="flex items-center justify-between">
             <div className="space-y-2">
               <div className="h-8 bg-secondary rounded-xl w-40" />

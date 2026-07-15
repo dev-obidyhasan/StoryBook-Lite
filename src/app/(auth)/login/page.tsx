@@ -89,7 +89,7 @@ export default function LoginPage() {
                   className={`flex flex-col gap-3 rounded-2xl border p-5 backdrop-blur-xl transition-transform duration-300 hover:-translate-y-1 ${f.bg}`}
                   style={{ animationDelay: `${i * 100}ms` }}
                 >
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center bg-white shadow-sm border border-border ${f.color}`}>
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center bg-white  border border-border ${f.color}`}>
                     <Icon className="w-5 h-5" />
                   </div>
                   <div>

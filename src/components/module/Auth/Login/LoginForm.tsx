@@ -34,7 +34,7 @@ export function LoginForm({
   ...props
 }: React.ComponentProps<"div">) {
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") || "/orders";
+  const callbackUrl = searchParams.get("callbackUrl") || "/templates";
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 

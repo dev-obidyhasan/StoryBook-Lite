@@ -1,65 +1,34 @@
-import { clientFetch } from "@/helper/client-fetch";
-import type {
-  ApiResponse,
-  Order,
-  OrderDetail,
-  OrderStatusResponse,
-  OrderStatus,
-  ApiMeta,
-} from "@/types";
+import { clientFetch, tokenStore } from "@/helper/client-fetch";
+import type { ApiResponse, Order } from "@/types";
+
+export type CreateOrderPayload = {
+  customerName: string;
+  templateId: string;
+};
 
 export const ordersService = {
-  /**
-   * Get paginated orders list with optional filters.
-   */
-  getOrders: (params?: {
-    status?: OrderStatus;
-    childName?: string;
-    page?: number;
-    limit?: number;
-  }) => {
-    const query = new URLSearchParams();
-    if (params?.status) query.set("status", params.status);
-    if (params?.childName) query.set("childName", params.childName);
-    if (params?.page) query.set("page", String(params.page));
-    if (params?.limit) query.set("limit", String(params.limit));
+  createOrder: (data: CreateOrderPayload) =>
+    clientFetch.post<ApiResponse<Order>>("/orders", {
+      body: JSON.stringify(data),
+    }),
 
-    const qs = query.toString();
-    return clientFetch.get<ApiResponse<Order[]> & { meta: ApiMeta }>(
-      `/orders${qs ? `?${qs}` : ""}`,
-    );
-  },
-
-  /**
-   * Get full order detail with pages + illustrations.
-   */
   getOrderById: (id: string) =>
-    clientFetch.get<ApiResponse<OrderDetail>>(`/orders/${id}`),
+    clientFetch.get<ApiResponse<Order>>(`/orders/${id}`),
 
-  /**
-   * Lightweight status poll for real-time updates.
-   */
-  getOrderStatus: (id: string) =>
-    clientFetch.get<ApiResponse<OrderStatusResponse>>(`/orders/${id}/status`),
+  generateOrderPDF: async (orderId: string, formData: FormData): Promise<Blob> => {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1'}/orders/${orderId}/generate`, {
+      method: 'POST',
+      body: formData,
+      headers: {
+        Authorization: `Bearer ${tokenStore.get()}`,
+      },
+    });
 
-  /**
-   * Create a new order (multipart form: photo + fields).
-   */
-  createOrder: (formData: FormData) =>
-    clientFetch.post<ApiResponse<Order>>("/orders", { body: formData }),
+    if (!response.ok) {
+      const errJson = await response.json().catch(() => null);
+      throw new Error(errJson?.error?.message || "Failed to generate PDF");
+    }
 
-  /**
-   * Cancel an in-progress order.
-   */
-  cancelOrder: (id: string) =>
-    clientFetch.patch<ApiResponse<null>>(`/orders/${id}/cancel`),
-
-  /**
-   * Reprocess a FAILED order — re-queues AI generation (SRD FR-04).
-   */
-  reprocessOrder: (id: string) =>
-    clientFetch.post<ApiResponse<Order>>(`/orders/${id}/reprocess`),
-
-  retryFailedPages: (id: string) =>
-    clientFetch.post<ApiResponse<Order>>(`/orders/${id}/retry-failed-pages`),
+    return response.blob();
+  },
 };

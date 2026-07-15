@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 const authRoutes = ['/login'];
-const privateRoutes = ['/orders', '/templates', '/settings'];
+const privateRoutes = ['/templates', '/settings'];
 
 export async function proxy(request: NextRequest) {
   const { pathname, searchParams } = request.nextUrl;
@@ -62,14 +62,14 @@ export async function proxy(request: NextRequest) {
 
   // ── Redirect authenticated users away from login page ────────────
   if (accessToken && authRoutes.some((route) => pathname.startsWith(route))) {
-    const url = new URL('/orders', request.url);
+    const url = new URL('/templates', request.url);
     url.searchParams.delete('__refreshed');
     return NextResponse.redirect(url);
   }
 
-  // ── Redirect root to orders or login ─────────────────────────────
+  // ── Redirect root to templates or login ─────────────────────────────
   if (pathname === '/') {
-    const url = new URL(accessToken ? '/orders' : '/login', request.url);
+    const url = new URL(accessToken ? '/templates' : '/login', request.url);
     url.searchParams.delete('__refreshed');
     return NextResponse.redirect(url);
   }
@@ -85,5 +85,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/', '/orders/:path*', '/templates/:path*', '/settings/:path*', '/login'],
+  matcher: ['/', '/templates/:path*', '/settings/:path*', '/login'],
 };

@@ -3,45 +3,54 @@ import type {
   ApiResponse,
   BookTemplate,
   ActiveTemplate,
-  TextZone,
-  PlatformAIDefaults,
-  PromptPreviewResult,
+  TemplateStatus,
+  DimensionUnit,
 } from "@/types";
+
+export type CreateTemplatePayload = {
+  name: string;
+  slug?: string;
+  coverImage?: string;
+  width: number;
+  height: number;
+  unit: DimensionUnit;
+  totalPages: number;
+};
 
 export type UpdateTemplatePayload = Partial<{
   name: string;
-  stylePrompt: string;
-  description: string;
+  slug: string;
+  coverImage: string;
+  width: number;
+  height: number;
+  unit: DimensionUnit;
+  status: TemplateStatus;
 }>;
+
+export type UpdateTemplatePagesPayload = {
+  pages: Array<{
+    pageNumber: number;
+    storyText?: string;
+  }>;
+};
 
 export const templatesService = {
   getActiveTemplates: () =>
     clientFetch.get<ApiResponse<ActiveTemplate[]>>("/templates/active"),
 
-  getTemplates: (params?: { isActive?: boolean }) => {
-    const qs =
-      params?.isActive !== undefined ? `?isActive=${params.isActive}` : "";
-    return clientFetch.get<ApiResponse<BookTemplate[]>>(`/templates${qs}`);
+  getTemplates: (params?: { status?: TemplateStatus; page?: number; limit?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.status) qs.append("status", params.status);
+    if (params?.page) qs.append("page", String(params.page));
+    if (params?.limit) qs.append("limit", String(params.limit));
+    
+    return clientFetch.get<ApiResponse<BookTemplate[]>>(`/templates?${qs.toString()}`);
   },
 
   getTemplateById: (id: string) =>
     clientFetch.get<ApiResponse<BookTemplate>>(`/templates/${id}`),
 
-  getAIPlatformDefaults: () =>
-    clientFetch.get<ApiResponse<PlatformAIDefaults>>("/templates/ai-defaults"),
-
-  getSupportedVariables: () =>
-    clientFetch.get<ApiResponse<Record<string, string>>>(
-      "/templates/variables",
-    ),
-
-  createTemplate: (data: {
-    name: string;
-    productType: string;
-    pageCount: number;
-    stylePrompt: string;
-    description?: string;
-  }) =>
+  createTemplate: (data: CreateTemplatePayload) =>
     clientFetch.post<ApiResponse<BookTemplate>>("/templates", {
       body: JSON.stringify(data),
     }),
@@ -51,65 +60,29 @@ export const templatesService = {
       body: JSON.stringify(data),
     }),
 
-  toggleStatus: (id: string, isActive: boolean) =>
-    clientFetch.patch<ApiResponse<BookTemplate>>(`/templates/${id}/status`, {
-      body: JSON.stringify({ isActive }),
-    }),
+  deleteTemplate: (id: string) =>
+    clientFetch.delete<ApiResponse<null>>(`/templates/${id}`),
 
-  validateTemplate: (id: string) =>
-    clientFetch.get<
-      ApiResponse<{ isValid: boolean; missingPages: number[]; message: string }>
-    >(`/templates/${id}/validate`),
-
-  addTemplatePage: (
-    templateId: string,
-    data: {
-      pageNumber: number;
-      promptTemplate: string;
-      sceneLabel?: string;
-      layoutFilePath?: string;
-    },
-  ) =>
-    clientFetch.post<ApiResponse<unknown>>(`/templates/${templateId}/pages`, {
+  updateTemplatePages: (id: string, data: UpdateTemplatePagesPayload) =>
+    clientFetch.patch<ApiResponse<BookTemplate>>(`/templates/${id}/pages`, {
       body: JSON.stringify(data),
     }),
 
-  previewTemplatePrompts: (
-    templateId: string,
-    params: {
-      childName: string;
-      childAge?: number;
-      childGender: "MALE" | "FEMALE";
-      pageNumber?: number;
-    },
-  ) => {
-    const qs = new URLSearchParams({
-      childName: params.childName,
-      childGender: params.childGender,
-      ...(params.childAge != null ? { childAge: String(params.childAge) } : {}),
-      ...(params.pageNumber != null
-        ? { pageNumber: String(params.pageNumber) }
-        : {}),
-    });
-    return clientFetch.get<ApiResponse<PromptPreviewResult>>(
-      `/templates/${templateId}/preview-prompts?${qs.toString()}`,
-    );
-  },
-
-  updateTemplatePage: (
-    templateId: string,
-    pageId: string,
-    data: Partial<{
-      promptTemplate: string;
-      layoutFilePath: string;
-      sceneLabel: string;
-      textZoneJson: TextZone[];
-    }>,
-  ) =>
-    clientFetch.patch<ApiResponse<unknown>>(
-      `/templates/${templateId}/pages/${pageId}`,
-      {
-        body: JSON.stringify(data),
+  generatePDF: async (templateId: string, formData: FormData): Promise<Blob> => {
+    // Generate PDF endpoint streams back binary data, not JSON
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/pdf/generate/${templateId}`, {
+      method: 'POST',
+      body: formData,
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       },
-    ),
+    });
+
+    if (!response.ok) {
+      const errJson = await response.json().catch(() => null);
+      throw new Error(errJson?.error?.message || "Failed to generate PDF");
+    }
+
+    return response.blob();
+  },
 };

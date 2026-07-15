@@ -10,35 +10,35 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default:     "bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm",
-        destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-sm",
-        outline:     "border border-border bg-white text-foreground hover:bg-muted hover:border-border/80 shadow-sm",
-        secondary:   "bg-secondary text-secondary-foreground hover:bg-secondary/80",
-        ghost:       "text-foreground hover:bg-muted hover:text-foreground",
-        link:        "text-primary underline-offset-4 hover:underline p-0 h-auto",
-        success:     "bg-success text-success-foreground hover:bg-success/90 shadow-sm",
-        warning:     "bg-warning text-warning-foreground hover:bg-warning/90 shadow-sm",
+        default: "bg-primary text-primary-foreground hover:bg-primary/90 ",
+        destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90 ",
+        outline: "border border-border bg-white text-foreground hover:bg-muted hover:border-border/80 ",
+        secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+        ghost: "text-foreground hover:bg-muted hover:text-foreground",
+        link: "text-primary underline-offset-4 hover:underline p-0 h-auto",
+        success: "bg-success text-success-foreground hover:bg-success/90 ",
+        warning: "bg-warning text-warning-foreground hover:bg-warning/90 ",
       },
       size: {
-        default:  "h-10 px-4 py-2",
-        sm:       "h-9 rounded-md px-3 text-xs",
-        lg:       "h-11 rounded-lg px-8 text-base font-medium",
-        xl:       "h-12 rounded-xl px-10 text-base font-medium",
-        icon:     "h-10 w-10",
+        default: "h-10 px-4 py-2",
+        sm: "h-9 rounded-md px-3 text-xs",
+        lg: "h-11 rounded-lg px-8 text-base font-medium",
+        xl: "h-12 rounded-xl px-10 text-base font-medium",
+        icon: "h-10 w-10",
         "icon-sm": "h-8 w-8 rounded-md",
         "icon-lg": "h-12 w-12 rounded-xl",
       },
     },
     defaultVariants: {
       variant: "default",
-      size:    "default",
+      size: "default",
     },
   },
 );
 
 export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement>,
-    VariantProps<typeof buttonVariants> {
+  VariantProps<typeof buttonVariants> {
   asChild?: boolean;
 }
 

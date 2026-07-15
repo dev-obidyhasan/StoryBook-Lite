@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { TemplateDetailPage } from "@/components/module/Templates/TemplateDetailPage";
+import { NewTemplatePage } from "@/components/module/Templates/NewTemplatePage";
 
 export const metadata: Metadata = { title: "Create Template" };
 
-export default function NewTemplatePage() {
-  return <TemplateDetailPage templateId="new" />;
+export default function NewTemplateRoute() {
+  return <NewTemplatePage />;
 }
