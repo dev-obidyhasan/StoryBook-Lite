@@ -90,120 +90,93 @@ export function TemplateListPage() {
       </div>
 
       {/* ── Content ─────────────────────────────────────────── */}
-      {isAuthLoading || isLoading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="h-48 rounded-2xl" />
-          ))}
-        </div>
-      ) : templates.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-24 gap-6 rounded-3xl border-2 border-dashed border-border bg-white ">
-          <div className="flex items-center justify-center w-20 h-20 rounded-3xl bg-primary/5 border border-primary/10  text-primary">
-            <BookMarked className="w-10 h-10" />
-          </div>
-          <div className="text-center space-y-2">
-            <p className="font-extrabold text-xl text-foreground">No templates available</p>
-            <p className="text-sm font-medium text-muted-foreground max-w-md mx-auto">
-              {user?.role === "SUPER_ADMIN"
-                ? "Start by creating a new template."
-                : "No templates have been published yet."}
-            </p>
-          </div>
-          {user?.role === "SUPER_ADMIN" && (
-            <Button asChild size="lg" className="shadow-glow-sm font-bold mt-2 rounded-xl">
-              <Link href="/templates/new"><Plus className="w-5 h-5 mr-1" /> Create First Template</Link>
-            </Button>
-          )}
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-          {templates.map((template, idx) => {
-            const isPublished = template.status === "PUBLISHED";
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+        {templates.map((template, idx) => {
+          const isPublished = template.status === "PUBLISHED";
 
-            return (
-              <div
-                key={template.id}
-                className={cn(
-                  "surface-card group relative overflow-hidden transition-all duration-300 hover-lift flex flex-col border border-border bg-card",
-                  !isPublished && "opacity-70 grayscale-[20%] hover:grayscale-0 hover:opacity-100",
-                )}
-                style={{ animationDelay: `${Math.min(idx * 50, 300)}ms` }}
-              >
-                {/* Accent glow background */}
-                {isPublished && (
-                  <div className="absolute -top-10 -right-10 w-32 h-32 bg-primary/5 rounded-full blur-[40px] pointer-events-none transition-all group-hover:bg-primary/10" />
-                )}
+          return (
+            <div
+              key={template.id}
+              className={cn(
+                "surface-card group relative overflow-hidden transition-all duration-300 hover-lift flex flex-col border border-border bg-card",
+                !isPublished && "opacity-70 grayscale-[20%] hover:grayscale-0 hover:opacity-100",
+              )}
+              style={{ animationDelay: `${Math.min(idx * 50, 300)}ms` }}
+            >
+              {/* Accent glow background */}
+              {isPublished && (
+                <div className="absolute -top-10 -right-10 w-32 h-32 bg-primary/5 rounded-full blur-[40px] pointer-events-none transition-all group-hover:bg-primary/10" />
+              )}
 
-                <div className="p-6 flex-1 space-y-5 relative z-10">
-                  {/* Header row */}
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex items-center justify-center w-12 h-12 rounded-2xl shrink-0  transition-transform group-hover:scale-105 border border-primary/20 bg-primary/10 text-primary">
-                      <BookMarked className="w-5 h-5" />
-                    </div>
-                    <div className="flex flex-col items-end gap-2">
-                      {isPublished ? (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-success/10 border border-success/20 text-[10px] font-bold text-success uppercase tracking-wider">
-                          <CheckCircle2 className="w-3 h-3" /> Published
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted border border-border text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-                          Draft
-                        </span>
-                      )}
-                    </div>
+              <div className="p-6 flex-1 space-y-5 relative z-10">
+                {/* Header row */}
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-center justify-center w-12 h-12 rounded-2xl shrink-0  transition-transform group-hover:scale-105 border border-primary/20 bg-primary/10 text-primary">
+                    <BookMarked className="w-5 h-5" />
                   </div>
-
-                  {/* Title */}
-                  <div className="space-y-1.5">
-                    <h3 className="font-extrabold text-lg text-foreground tracking-tight line-clamp-1 group-hover:text-primary transition-colors">
-                      {template.name}
-                    </h3>
-                  </div>
-
-                  {/* Badges/Stats */}
-                  <div className="flex flex-wrap items-center gap-2 pt-2">
-                    <span className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/30 px-2.5 py-1 text-[11px] font-bold text-muted-foreground ">
-                      <Maximize className="w-3.5 h-3.5 text-foreground/50" />
-                      {template.width} × {template.height} {template.unit}
-                    </span>
-                    <span className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/30 px-2.5 py-1 text-[11px] font-bold text-muted-foreground ">
-                      <Layers className="w-3.5 h-3.5 text-foreground/50" />
-                      {template.totalPages} Pages
-                    </span>
+                  <div className="flex flex-col items-end gap-2">
+                    {isPublished ? (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-success/10 border border-success/20 text-[10px] font-bold text-success uppercase tracking-wider">
+                        <CheckCircle2 className="w-3 h-3" /> Published
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted border border-border text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                        Draft
+                      </span>
+                    )}
                   </div>
                 </div>
 
-                {/* Footer actions */}
-                <div className="px-6 pb-6 pt-2 flex items-center gap-3 relative z-10">
-                  <Button variant="default" asChild className={cn("flex-1 h-10 font-bold rounded-xl ", isPublished && "shadow-glow-sm")}>
-                    <Link href={`/templates/${template.id}`}>
-                      {user?.role === "SUPER_ADMIN" ? (
-                        <><Settings2 className="w-4 h-4 mr-1.5" /> Configure</>
-                      ) : (
-                        <><Plus className="w-4 h-4 mr-1.5" /> Generate PDF</>
-                      )}
-                    </Link>
-                  </Button>
+                {/* Title */}
+                <div className="space-y-1.5">
+                  <h3 className="font-extrabold text-lg text-foreground tracking-tight line-clamp-1 group-hover:text-primary transition-colors">
+                    {template.name}
+                  </h3>
+                </div>
 
-                  {user?.role === "SUPER_ADMIN" && (
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="h-10 w-10 shrink-0 rounded-xl"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        setTemplateToDelete(template);
-                      }}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  )}
+                {/* Badges/Stats */}
+                <div className="flex flex-wrap items-center gap-2 pt-2">
+                  <span className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/30 px-2.5 py-1 text-[11px] font-bold text-muted-foreground ">
+                    <Maximize className="w-3.5 h-3.5 text-foreground/50" />
+                    {template.width} × {template.height} {template.unit}
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/30 px-2.5 py-1 text-[11px] font-bold text-muted-foreground ">
+                    <Layers className="w-3.5 h-3.5 text-foreground/50" />
+                    {template.totalPages} Pages
+                  </span>
                 </div>
               </div>
-            );
-          })}
-        </div>
-      )}
+
+              {/* Footer actions */}
+              <div className="px-6 pb-6 pt-2 flex items-center gap-3 relative z-10">
+                <Button variant="default" asChild className={cn("flex-1 h-10 font-bold rounded-xl ", isPublished && "shadow-glow-sm")}>
+                  <Link href={`/templates/${template.id}`}>
+                    {user?.role === "SUPER_ADMIN" ? (
+                      <><Settings2 className="w-4 h-4 mr-1.5" /> Configure</>
+                    ) : (
+                      <><Plus className="w-4 h-4 mr-1.5" /> Generate PDF</>
+                    )}
+                  </Link>
+                </Button>
+
+                {user?.role === "SUPER_ADMIN" && (
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-10 w-10 shrink-0 rounded-xl"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setTemplateToDelete(template);
+                    }}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
 
       {/* Delete Confirmation Modal */}
       <Dialog open={!!templateToDelete} onOpenChange={(open) => !open && setTemplateToDelete(null)}>
