@@ -2,14 +2,18 @@
 
 import { useEffect, useState } from 'react';
 import { tokenStore } from '@/helper/client-fetch';
+import { getCookie, refreshAccessTokenAction } from '@/services/auth/tokenHandlers';
 import type { UserInfo } from '@/types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
 /**
- * useAuth — initialises access token in memory on mount by calling /auth/refresh.
- * The refresh token lives in an httpOnly cookie, so this is safe.
- * Returns current user info decoded from the token.
+ * useAuth — initialises access token on mount using server actions (same as TokenInitializer).
+ *
+ * Uses refreshAccessTokenAction() instead of a browser-side cross-site fetch because:
+ * - Login stores tokens on the frontend domain (storybooklite.vercel.app) via server actions.
+ * - The browser has no cookies for the backend domain, so direct /auth/refresh calls get 401.
+ * - Server actions read from the Next.js cookie store (frontend domain) — no cross-site issue.
  */
 export function useAuth() {
   const [user, setUser] = useState<UserInfo | null>(null);
@@ -18,25 +22,20 @@ export function useAuth() {
   useEffect(() => {
     const init = async () => {
       try {
-        // Refresh to get a fresh access token on every page load
-        const res = await fetch(`${API_BASE}/auth/refresh`, {
-          method: 'POST',
-          credentials: 'include',
-        });
+        // 1. Try to get a fresh access token via server action (avoids cross-site cookie issues)
+        const token = await refreshAccessTokenAction()
+          // 2. Fallback: use existing accessToken cookie if refresh isn't needed yet
+          || await getCookie('accessToken');
 
-        if (res.ok) {
-          const json = await res.json();
-          const token: string = json?.data?.accessToken;
-          if (token) {
-            tokenStore.set(token);
-            // Decode JWT payload (no verification needed — server already verified)
-            const payload = JSON.parse(atob(token.split('.')[1]));
-            setUser({
-              userId: payload.userId,
-              email: payload.email,
-              role: payload.role,
-            });
-          }
+        if (token) {
+          tokenStore.set(token);
+          // Decode JWT payload to get user info (server already verified the token)
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          setUser({
+            userId: payload.userId,
+            email: payload.email,
+            role: payload.role,
+          });
         } else {
           tokenStore.clear();
           setUser(null);
@@ -70,3 +69,4 @@ export function useAuth() {
 
   return { user, isLoading, isAuthenticated: !!user, logout };
 }
+
