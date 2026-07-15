@@ -65,6 +65,55 @@ export function OrderImagesPage({ orderId }: { orderId: string }) {
     toast.success(`Successfully mapped ${sortedFiles.length} images to pages.`);
   };
 
+  // Compress image files in the browser before uploading to stay well under server limits.
+  // Uses Canvas to resize to max 2048px and re-encodes as JPEG at 85% quality.
+  const compressImage = (file: File): Promise<File> => {
+    return new Promise((resolve) => {
+      // If the file is already small enough, skip compression
+      if (file.size <= 3 * 1024 * 1024) {
+        resolve(file);
+        return;
+      }
+      const img = new Image();
+      const objectUrl = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(objectUrl);
+        const MAX_DIM = 2048;
+        let { width, height } = img;
+        if (width > MAX_DIM || height > MAX_DIM) {
+          if (width > height) {
+            height = Math.round((height / width) * MAX_DIM);
+            width = MAX_DIM;
+          } else {
+            width = Math.round((width / height) * MAX_DIM);
+            height = MAX_DIM;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob(
+          (blob) => {
+            if (blob) {
+              resolve(new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg' }));
+            } else {
+              resolve(file); // fallback: use original
+            }
+          },
+          'image/jpeg',
+          0.85,
+        );
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        resolve(file); // fallback: use original
+      };
+      img.src = objectUrl;
+    });
+  };
+
   const handleGeneratePDF = async () => {
     if (!order || !order.template) return;
     const template = order.template;
@@ -80,10 +129,14 @@ export function OrderImagesPage({ orderId }: { orderId: string }) {
 
     setIsGenerating(true);
     try {
+      // Compress images client-side before upload to prevent 413 errors
       const formData = new FormData();
-      Object.entries(pageImages).forEach(([pageNumber, file]) => {
-        formData.append(`page_${pageNumber}`, file);
-      });
+      await Promise.all(
+        Object.entries(pageImages).map(async ([pageNumber, file]) => {
+          const compressed = await compressImage(file);
+          formData.append(`page_${pageNumber}`, compressed);
+        })
+      );
 
       const blob = await ordersService.generateOrderPDF(orderId, formData);
       const url = URL.createObjectURL(blob);
@@ -96,7 +149,6 @@ export function OrderImagesPage({ orderId }: { orderId: string }) {
       URL.revokeObjectURL(url);
 
       toast.success("PDF generated successfully!");
-      // Cleanup files if needed, or redirect
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "PDF Generation failed.");
     } finally {
