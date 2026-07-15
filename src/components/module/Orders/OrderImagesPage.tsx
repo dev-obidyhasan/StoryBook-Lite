@@ -21,8 +21,6 @@ export function OrderImagesPage({ orderId }: { orderId: string }) {
 
   // Bulk Upload State
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [dragCounter, setDragCounter] = useState(0);
-  const isDraggingBulk = dragCounter > 0;
 
   useEffect(() => {
     setIsLoading(true);
@@ -211,47 +209,7 @@ export function OrderImagesPage({ orderId }: { orderId: string }) {
       </div>
 
       {/* User Image Uploader & Generator */}
-      <div
-        className={cn(
-          "surface-card p-6 md:p-8 space-y-8 relative transition-all duration-300",
-          isDraggingBulk ? "border-primary shadow-glow-sm bg-primary/5 ring-4 ring-primary/20 scale-[1.01]" : ""
-        )}
-        onDragEnter={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          setDragCounter(prev => prev + 1);
-        }}
-        onDragLeave={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          setDragCounter(prev => prev - 1);
-        }}
-        onDragOver={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-        }}
-        onDrop={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          setDragCounter(0);
-          const files = Array.from(e.dataTransfer.files);
-          handleBulkFiles(files);
-        }}
-      >
-        {isDraggingBulk && (
-          <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm rounded-2xl border-2 border-primary border-dashed pointer-events-none">
-            <div className="text-center space-y-4">
-              <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto text-primary shadow-glow-sm animate-pulse">
-                <UploadCloud className="w-10 h-10" />
-              </div>
-              <div>
-                <h3 className="text-2xl font-extrabold text-foreground">Drop images to upload in bulk</h3>
-                <p className="text-sm font-medium text-muted-foreground mt-1">Up to {template.totalPages} images allowed</p>
-              </div>
-            </div>
-          </div>
-        )}
-
+      <div className="surface-card p-6 md:p-8 space-y-8 relative transition-all duration-300">
         <input
           type="file"
           multiple
