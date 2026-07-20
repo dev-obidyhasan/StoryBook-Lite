@@ -79,26 +79,6 @@ const SidebarProvider = React.forwardRef<
       [setOpenProp, open],
     );
 
-    // Helper to toggle the sidebar.
-    const toggleSidebar = React.useCallback(() => {
-      return setOpen((prev) => !prev);
-    }, [setOpen]);
-
-    // Adds a keyboard shortcut to toggle the sidebar.
-    React.useEffect(() => {
-      const handleKeyDown = (event: KeyboardEvent) => {
-        if (
-          event.key === SIDEBAR_KEYBOARD_SHORTCUT &&
-          (event.metaKey || event.ctrlKey)
-        ) {
-          event.preventDefault();
-          toggleSidebar();
-        }
-      };
-      window.addEventListener("keydown", handleKeyDown);
-      return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [toggleSidebar]);
-
     // We add a state so that we can do `data-[state=open]` in our CSS.
     const [openMobile, setOpenMobile] = React.useState(false);
     const isMobile = React.useMemo(() => {
@@ -115,6 +95,33 @@ const SidebarProvider = React.forwardRef<
       window.addEventListener("resize", handleResize);
       return () => window.removeEventListener("resize", handleResize);
     }, []);
+
+    // Helper to toggle the sidebar.
+    // On mobile viewports the sidebar is controlled by `openMobile`, while on
+    // desktop it is controlled by `open`. The previous implementation only
+    // toggled `open`, so the trigger button did nothing on mobile.
+    const toggleSidebar = React.useCallback(() => {
+      if (isMobile) {
+        setOpenMobile((prev) => !prev);
+      } else {
+        setOpen((prev) => !prev);
+      }
+    }, [isMobile, setOpen]);
+
+    // Adds a keyboard shortcut to toggle the sidebar.
+    React.useEffect(() => {
+      const handleKeyDown = (event: KeyboardEvent) => {
+        if (
+          event.key === SIDEBAR_KEYBOARD_SHORTCUT &&
+          (event.metaKey || event.ctrlKey)
+        ) {
+          event.preventDefault();
+          toggleSidebar();
+        }
+      };
+      window.addEventListener("keydown", handleKeyDown);
+      return () => window.removeEventListener("keydown", handleKeyDown);
+    }, [toggleSidebar]);
 
     const contextValue = React.useMemo<SidebarContext>(
       () => ({
