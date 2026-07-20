@@ -63,20 +63,14 @@ export function OrderImagesPage({ orderId }: { orderId: string }) {
     toast.success(`Successfully mapped ${sortedFiles.length} images to pages.`);
   };
 
-  // Compress image files in the browser before uploading to stay well under server limits.
-  // Uses Canvas to resize to max 2048px and re-encodes as JPEG at 85% quality.
+  // Compress images before upload — each request must stay under Vercel's 4.5MB limit.
   const compressImage = (file: File): Promise<File> => {
     return new Promise((resolve) => {
-      // If the file is already small enough, skip compression
-      if (file.size <= 3 * 1024 * 1024) {
-        resolve(file);
-        return;
-      }
       const img = new Image();
       const objectUrl = URL.createObjectURL(file);
       img.onload = () => {
         URL.revokeObjectURL(objectUrl);
-        const MAX_DIM = 2048;
+        const MAX_DIM = 1600;
         let { width, height } = img;
         if (width > MAX_DIM || height > MAX_DIM) {
           if (width > height) {
@@ -87,26 +81,47 @@ export function OrderImagesPage({ orderId }: { orderId: string }) {
             height = MAX_DIM;
           }
         }
-        const canvas = document.createElement('canvas');
+        const canvas = document.createElement("canvas");
         canvas.width = width;
         canvas.height = height;
-        const ctx = canvas.getContext('2d')!;
+        const ctx = canvas.getContext("2d")!;
         ctx.drawImage(img, 0, 0, width, height);
-        canvas.toBlob(
-          (blob) => {
-            if (blob) {
-              resolve(new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg' }));
-            } else {
-              resolve(file); // fallback: use original
-            }
-          },
-          'image/jpeg',
-          0.85,
-        );
+
+        const tryQuality = (quality: number) => {
+          canvas.toBlob(
+            (blob) => {
+              if (blob && blob.size <= 900 * 1024) {
+                resolve(
+                  new File(
+                    [blob],
+                    file.name.replace(/\.[^.]+$/, ".jpg"),
+                    { type: "image/jpeg" },
+                  ),
+                );
+              } else if (quality > 0.5) {
+                tryQuality(quality - 0.1);
+              } else if (blob) {
+                resolve(
+                  new File(
+                    [blob],
+                    file.name.replace(/\.[^.]+$/, ".jpg"),
+                    { type: "image/jpeg" },
+                  ),
+                );
+              } else {
+                resolve(file);
+              }
+            },
+            "image/jpeg",
+            quality,
+          );
+        };
+
+        tryQuality(0.82);
       };
       img.onerror = () => {
         URL.revokeObjectURL(objectUrl);
-        resolve(file); // fallback: use original
+        resolve(file);
       };
       img.src = objectUrl;
     });
@@ -118,25 +133,30 @@ export function OrderImagesPage({ orderId }: { orderId: string }) {
 
     const missingPages = Array.from({ length: template.totalPages })
       .map((_, i) => i + 1)
-      .filter(p => !pageImages[p]);
+      .filter((p) => !pageImages[p]);
 
     if (missingPages.length > 0) {
-      toast.error(`Please upload images for pages: ${missingPages.join(', ')}`);
+      toast.error(`Please upload images for pages: ${missingPages.join(", ")}`);
       return;
     }
 
     setIsGenerating(true);
     try {
-      // Compress images client-side before upload to prevent 413 errors
-      const formData = new FormData();
-      await Promise.all(
-        Object.entries(pageImages).map(async ([pageNumber, file]) => {
-          const compressed = await compressImage(file);
-          formData.append(`page_${pageNumber}`, compressed);
-        })
+      // Upload one page at a time to avoid Vercel 413 (4.5MB request limit)
+      const pageEntries = Object.entries(pageImages).sort(
+        ([a], [b]) => Number(a) - Number(b),
       );
 
-      const blob = await ordersService.generateOrderPDF(orderId, formData);
+      for (const [pageNumber, file] of pageEntries) {
+        const compressed = await compressImage(file);
+        await ordersService.uploadOrderPageImage(
+          orderId,
+          Number(pageNumber),
+          compressed,
+        );
+      }
+
+      const blob = await ordersService.generateOrderPDF(orderId);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
