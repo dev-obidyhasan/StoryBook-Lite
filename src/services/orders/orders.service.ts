@@ -46,12 +46,19 @@ export const ordersService = {
     }
   },
 
-  /** Generate PDF from previously uploaded page images (no large multipart body). */
+  /** Generate PDF from previously uploaded page images (no large multipart body).
+   *
+   * The backend returns the PDF as base64-encoded JSON (not a raw binary
+   * stream) so download-manager browser extensions (e.g. IDM) cannot
+   * intercept the response and strip CORS headers. We decode the base64
+   * back into a Blob here and trigger the download in the UI.
+   */
   generateOrderPDF: async (orderId: string): Promise<Blob> => {
     const response = await fetch(`${API_BASE}/orders/${orderId}/generate`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${tokenStore.get()}`,
+        Accept: "application/json",
       },
     });
 
@@ -60,6 +67,25 @@ export const ordersService = {
       throw new Error(errJson?.error?.message || "Failed to generate PDF");
     }
 
-    return response.blob();
+    const json = (await response.json()) as {
+      success: boolean;
+      data?: { base64?: string; mimeType?: string };
+      error?: { message?: string };
+    };
+
+    if (!json.success || !json.data?.base64) {
+      throw new Error(json.error?.message || "Failed to generate PDF");
+    }
+
+    // Decode base64 into a binary Blob
+    const byteCharacters = atob(json.data.base64);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    return new Blob([byteArray], {
+      type: json.data.mimeType || "application/pdf",
+    });
   },
 };

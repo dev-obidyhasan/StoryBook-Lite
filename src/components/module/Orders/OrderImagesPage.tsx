@@ -149,6 +149,9 @@ export function OrderImagesPage({ orderId }: { orderId: string }) {
 
       for (const [pageNumber, file] of pageEntries) {
         const compressed = await compressImage(file);
+        toast.loading(`Uploading page ${pageNumber} of ${pageEntries.length}...`, {
+          id: "pdf-upload",
+        });
         await ordersService.uploadOrderPageImage(
           orderId,
           Number(pageNumber),
@@ -156,7 +159,9 @@ export function OrderImagesPage({ orderId }: { orderId: string }) {
         );
       }
 
+      toast.loading("Generating PDF...", { id: "pdf-upload" });
       const blob = await ordersService.generateOrderPDF(orderId);
+      toast.dismiss("pdf-upload");
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -168,6 +173,7 @@ export function OrderImagesPage({ orderId }: { orderId: string }) {
 
       toast.success("PDF generated successfully!");
     } catch (err) {
+      toast.dismiss("pdf-upload");
       toast.error(err instanceof Error ? err.message : "PDF Generation failed.");
     } finally {
       setIsGenerating(false);
