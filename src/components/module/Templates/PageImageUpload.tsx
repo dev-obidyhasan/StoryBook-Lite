@@ -13,7 +13,7 @@ interface PageImageUploadProps {
 }
 
 const ACCEPTED_TYPES = ["image/jpeg", "image/png"];
-const MAX_SIZE_MB = 10;
+const MAX_SIZE_MB = 20;
 
 export function PageImageUpload({ pageNumber, value, onChange, error }: PageImageUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);

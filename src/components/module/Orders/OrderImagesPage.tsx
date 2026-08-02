@@ -90,66 +90,6 @@ export function OrderImagesPage({ orderId }: { orderId: string }) {
     toast.success(`Successfully mapped ${mappedCount} images to pages.`);
   };
 
-  // Compress images before upload — each request must stay under Vercel's 4.5MB limit.
-  const compressImage = (file: File): Promise<File> => {
-    return new Promise((resolve) => {
-      const img = new Image();
-      const objectUrl = URL.createObjectURL(file);
-      img.onload = () => {
-        URL.revokeObjectURL(objectUrl);
-        const MAX_DIM = 1600;
-        let { width, height } = img;
-        if (width > MAX_DIM || height > MAX_DIM) {
-          if (width > height) {
-            height = Math.round((height / width) * MAX_DIM);
-            width = MAX_DIM;
-          } else {
-            width = Math.round((width / height) * MAX_DIM);
-            height = MAX_DIM;
-          }
-        }
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext("2d")!;
-        ctx.drawImage(img, 0, 0, width, height);
-
-        const tryQuality = (quality: number) => {
-          canvas.toBlob(
-            (blob) => {
-              if (blob && blob.size <= 900 * 1024) {
-                resolve(
-                  new File([blob], file.name.replace(/\.[^.]+$/, ".jpg"), {
-                    type: "image/jpeg",
-                  }),
-                );
-              } else if (quality > 0.5) {
-                tryQuality(quality - 0.1);
-              } else if (blob) {
-                resolve(
-                  new File([blob], file.name.replace(/\.[^.]+$/, ".jpg"), {
-                    type: "image/jpeg",
-                  }),
-                );
-              } else {
-                resolve(file);
-              }
-            },
-            "image/jpeg",
-            quality,
-          );
-        };
-
-        tryQuality(0.82);
-      };
-      img.onerror = () => {
-        URL.revokeObjectURL(objectUrl);
-        resolve(file);
-      };
-      img.src = objectUrl;
-    });
-  };
-
   const handleGeneratePDF = async () => {
     if (!order || !order.template) return;
     const template = order.template;
@@ -165,13 +105,13 @@ export function OrderImagesPage({ orderId }: { orderId: string }) {
 
     setIsGenerating(true);
     try {
-      // Upload one page at a time to avoid Vercel 413 (4.5MB request limit)
+      // Upload one page at a time — original files are sent without client-side
+      // compression so full pixel resolution is preserved for PDF embedding.
       const pageEntries = Object.entries(pageImages).sort(
         ([a], [b]) => Number(a) - Number(b),
       );
 
       for (const [pageNumber, file] of pageEntries) {
-        const compressed = await compressImage(file);
         toast.loading(
           `Uploading page ${pageNumber} of ${pageEntries.length}...`,
           {
@@ -181,7 +121,7 @@ export function OrderImagesPage({ orderId }: { orderId: string }) {
         await ordersService.uploadOrderPageImage(
           orderId,
           Number(pageNumber),
-          compressed,
+          file,
         );
       }
 
