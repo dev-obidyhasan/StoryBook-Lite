@@ -65,10 +65,27 @@ export function OrderImagesPage({ orderId }: { orderId: string }) {
     for (const file of imageFiles) {
       // Extract the numeric portion of the file name before the extension.
       const stem = file.name.replace(/\.[^.]+$/, "");
-      const match = stem.match(/^(\d+)/);
-      if (!match) continue; // skip files without a valid numeric page index
 
-      const pageIndex = Number(match[1]); // 0-based index from file name
+      // 1. Prefer a number enclosed in parentheses, brackets, or braces
+      //    e.g. "0(2)" → 2, "0[10]" → 10, "0{3}" → 3
+      // 2. Fall back to the leading number for plain filenames
+      //    e.g. "1" → 1, "10" → 10  (existing behavior, unchanged)
+      const bracketMatch = stem.match(/[([{](\d+)[)\]}]/);
+      const leadingMatch = stem.match(/^(\d+)/);
+
+      let rawIndex: number | null = null;
+      if (bracketMatch) {
+        // Sequence number is the value inside the brackets (1-based from user)
+        // Subtract 1 to convert to the 0-based page index used internally.
+        rawIndex = Number(bracketMatch[1]) - 1;
+      } else if (leadingMatch) {
+        // Plain numeric filename: the number itself is the 0-based page index.
+        rawIndex = Number(leadingMatch[1]);
+      }
+
+      if (rawIndex === null) continue; // skip files without a recognizable index
+
+      const pageIndex = rawIndex; // 0-based index
       const pageNumber = pageIndex + 1; // convert to 1-based app page key
 
       // Ignore files whose page index is outside the available page range.
