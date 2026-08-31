@@ -71,6 +71,31 @@ export type TemplatePage = {
   updatedAt: string;
 };
 
+// ─── Print enhancement ───────────────────────────────────────────
+export type EnhancementSettings = {
+  brightness: number;
+  contrast: number;
+  exposure: number;
+  gamma: number;
+  shadows: number;
+  highlights: number;
+  saturation: number;
+  sharpness: number;
+  temperature: number;
+};
+export type EnhancementConfig = {
+  enabled: boolean;
+  mode: "preset" | "custom";
+  presetId?: string;
+  settings: EnhancementSettings;
+};
+export type EnhancementPreset = {
+  id: string;
+  name: string;
+  settings: EnhancementSettings;
+  isSystem: boolean;
+};
+
 // ─── Order ────────────────────────────────────────────────────────
 export type Order = {
   id: string;
@@ -78,4 +103,5 @@ export type Order = {
   templateId: string;
   createdAt: string;
   template?: BookTemplate;
+  enhancement?: EnhancementConfig | null;
 };

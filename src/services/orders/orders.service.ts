@@ -46,6 +46,11 @@ export const ordersService = {
     }
   },
 
+  saveEnhancement: (orderId: string, enhancement: unknown) =>
+    clientFetch.patch<ApiResponse<Order>>(`/orders/${orderId}/enhancement`, {
+      body: JSON.stringify({ enhancement }),
+    }),
+
   /** Generate PDF from previously uploaded page images (no large multipart body).
    *
    * The backend returns the PDF as base64-encoded JSON (not a raw binary

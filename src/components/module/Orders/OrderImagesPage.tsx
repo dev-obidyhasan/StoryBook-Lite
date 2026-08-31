@@ -14,6 +14,8 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ordersService } from "@/services/orders/orders.service";
+import type { EnhancementConfig } from "@/types";
+import { PrintEnhancementPanel } from "./PrintEnhancementPanel";
 import type { Order } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -26,6 +28,22 @@ export function OrderImagesPage({ orderId }: { orderId: string }) {
   // User Generation State
   const [pageImages, setPageImages] = useState<Record<number, File>>({});
   const [isGenerating, setIsGenerating] = useState(false);
+  const [enhancement, setEnhancement] = useState<EnhancementConfig>({
+    enabled: false,
+    mode: "preset",
+    presetId: "original",
+    settings: {
+      brightness: 0,
+      contrast: 0,
+      exposure: 0,
+      gamma: 1,
+      shadows: 0,
+      highlights: 0,
+      saturation: 0,
+      sharpness: 0,
+      temperature: 0,
+    },
+  });
 
   // Bulk Upload State
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -105,6 +123,15 @@ export function OrderImagesPage({ orderId }: { orderId: string }) {
     // Preserve existing images for any pages not included in this selection.
     setPageImages((prev) => ({ ...prev, ...newMap }));
     toast.success(`Successfully mapped ${mappedCount} images to pages.`);
+  };
+
+  const saveEnhancement = async (next: EnhancementConfig) => {
+    setEnhancement(next);
+    try {
+      await ordersService.saveEnhancement(orderId, next);
+    } catch {
+      toast.error("Failed to save print enhancement");
+    }
   };
 
   const handleGeneratePDF = async () => {
@@ -229,6 +256,12 @@ export function OrderImagesPage({ orderId }: { orderId: string }) {
           </div>
         </div>
       </div>
+
+      <PrintEnhancementPanel
+        value={order.enhancement ?? enhancement}
+        onChange={saveEnhancement}
+        previewFile={pageImages[1] || null}
+      />
 
       {/* User Image Uploader & Generator */}
       <div className="surface-card p-6 md:p-8 space-y-8 relative transition-all duration-300">
