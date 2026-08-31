@@ -46,11 +46,6 @@ export const ordersService = {
     }
   },
 
-  saveEnhancement: (orderId: string, enhancement: unknown) =>
-    clientFetch.patch<ApiResponse<Order>>(`/orders/${orderId}/enhancement`, {
-      body: JSON.stringify({ enhancement }),
-    }),
-
   /** Generate PDF from previously uploaded page images (no large multipart body).
    *
    * The backend returns the PDF as base64-encoded JSON (not a raw binary
@@ -58,14 +53,23 @@ export const ordersService = {
    * intercept the response and strip CORS headers. We decode the base64
    * back into a Blob here and trigger the download in the UI.
    */
-  generateOrderPDF: async (orderId: string): Promise<Blob> => {
-    const response = await fetch(`${API_BASE}/orders/${orderId}/generate`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${tokenStore.get()}`,
-        Accept: "application/json",
+  generateOrderPDF: async (
+    orderId: string,
+    enhancement?: unknown,
+  ): Promise<Blob> => {
+    const query = enhancement
+      ? `?enhancement=${encodeURIComponent(JSON.stringify(enhancement))}`
+      : "";
+    const response = await fetch(
+      `${API_BASE}/orders/${orderId}/generate${query}`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${tokenStore.get()}`,
+          Accept: "application/json",
+        },
       },
-    });
+    );
 
     if (!response.ok) {
       const errJson = await response.json().catch(() => null);

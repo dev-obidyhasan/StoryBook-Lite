@@ -47,10 +47,6 @@ export function OrderImagesPage({ orderId }: { orderId: string }) {
 
   // Bulk Upload State
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const enhancementSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  );
-  const enhancementRequestRef = useRef(0);
 
   useEffect(() => {
     setIsLoading(true);
@@ -58,18 +54,22 @@ export function OrderImagesPage({ orderId }: { orderId: string }) {
       .getOrderById(orderId)
       .then((res) => {
         setOrder(res.data);
+        if (res.data?.enhancement) {
+          setEnhancement(res.data.enhancement);
+        } else {
+          try {
+            const saved = window.localStorage.getItem(
+              `order-enhancement:${orderId}`,
+            );
+            if (saved) setEnhancement(JSON.parse(saved) as EnhancementConfig);
+          } catch {
+            // Ignore unavailable/corrupt local editing state and use Original.
+          }
+        }
       })
       .catch(() => toast.error("Failed to load order."))
       .finally(() => setIsLoading(false));
   }, [orderId]);
-
-  useEffect(
-    () => () => {
-      if (enhancementSaveTimerRef.current)
-        clearTimeout(enhancementSaveTimerRef.current);
-    },
-    [],
-  );
 
   const handleBulkFiles = (files: File[]) => {
     if (!order || !order.template) return;
@@ -139,22 +139,14 @@ export function OrderImagesPage({ orderId }: { orderId: string }) {
 
   const saveEnhancement = (next: EnhancementConfig) => {
     setEnhancement(next);
-    if (enhancementSaveTimerRef.current)
-      clearTimeout(enhancementSaveTimerRef.current);
-    const requestId = ++enhancementRequestRef.current;
-    enhancementSaveTimerRef.current = setTimeout(async () => {
-      try {
-        await ordersService.saveEnhancement(orderId, next);
-      } catch (error) {
-        if (requestId === enhancementRequestRef.current) {
-          toast.error(
-            error instanceof Error
-              ? error.message
-              : "Failed to save print enhancement",
-          );
-        }
-      }
-    }, 400);
+    try {
+      window.localStorage.setItem(
+        `order-enhancement:${orderId}`,
+        JSON.stringify(next),
+      );
+    } catch {
+      // The current editing session still works when browser storage is unavailable.
+    }
   };
 
   const handleGeneratePDF = async () => {
@@ -193,7 +185,7 @@ export function OrderImagesPage({ orderId }: { orderId: string }) {
       }
 
       toast.loading("Generating PDF...", { id: "pdf-upload" });
-      const blob = await ordersService.generateOrderPDF(orderId);
+      const blob = await ordersService.generateOrderPDF(orderId, enhancement);
       toast.dismiss("pdf-upload");
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -281,7 +273,7 @@ export function OrderImagesPage({ orderId }: { orderId: string }) {
       </div>
 
       <PrintEnhancementPanel
-        value={order.enhancement ?? enhancement}
+        value={enhancement}
         onChange={saveEnhancement}
         previewFile={pageImages[1] || null}
       />
