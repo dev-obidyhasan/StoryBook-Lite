@@ -1,77 +1,210 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { RotateCcw, Save } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import type { EnhancementConfig, EnhancementSettings } from "@/types";
+import {
+  applyTonalEnhancement,
+  normalizeTonalSettings,
+} from "@/services/orders/tonalEngine";
 
-const original: EnhancementSettings = {
+const neutral: EnhancementSettings = {
   brightness: 0,
   contrast: 0,
   exposure: 0,
   gamma: 1,
   shadows: 0,
+  shadowRange: 0.5,
+  shadowFeather: 0.5,
   highlights: 0,
+  highlightRange: 0.5,
+  highlightFeather: 0.5,
+  whites: 0,
+  blacks: 0,
+  blackPoint: 0,
   saturation: 0,
-  sharpness: 0,
+  vibrance: 0,
   temperature: 0,
+  tint: 0,
+  clarity: 0,
+  sharpness: 0,
+  faceProtection: 0,
 };
+
+const original: EnhancementSettings = { ...neutral };
+
+/** Same ids as the backend ENHANCEMENT_PRESETS (backward compatible). */
 const presets: Record<string, EnhancementSettings> = {
   original,
   printLight: {
-    ...original,
-    brightness: 0.08,
-    exposure: 0.08,
-    gamma: 0.98,
-    shadows: 0.18,
-    highlights: -0.04,
-    sharpness: 0.15,
+    ...neutral,
+    brightness: 0.04,
+    contrast: 0.01,
+    exposure: 0.06,
+    gamma: 0.99,
+    shadows: 0.12,
+    shadowRange: 0.45,
+    shadowFeather: 0.55,
+    highlights: -0.03,
+    blackPoint: 0.3,
+    saturation: 0.02,
+    clarity: 0.08,
+    sharpness: 0.12,
   },
   brightPrint: {
-    ...original,
-    brightness: 0.12,
-    exposure: 0.12,
-    gamma: 0.97,
-    shadows: 0.22,
-    highlights: -0.06,
-    saturation: 0.02,
-    sharpness: 0.18,
+    ...neutral,
+    brightness: 0.06,
+    contrast: 0.02,
+    exposure: 0.1,
+    gamma: 0.98,
+    shadows: 0.16,
+    shadowRange: 0.48,
+    shadowFeather: 0.55,
+    highlights: -0.04,
+    whites: 0.05,
+    blackPoint: 0.3,
+    saturation: 0.03,
+    clarity: 0.1,
+    sharpness: 0.15,
   },
   shadowDetail: {
-    ...original,
-    brightness: 0.04,
-    exposure: 0.03,
-    gamma: 0.96,
-    shadows: 0.35,
-    highlights: -0.1,
+    ...neutral,
+    brightness: 0.02,
+    contrast: -0.01,
+    exposure: 0.04,
+    gamma: 0.97,
+    shadows: 0.3,
+    shadowRange: 0.5,
+    shadowFeather: 0.6,
+    highlights: -0.08,
+    blacks: 0.06,
+    blackPoint: 0.45,
+    saturation: 0.03,
+    clarity: 0.12,
     sharpness: 0.12,
   },
   softPrint: {
-    ...original,
-    brightness: 0.06,
-    contrast: -0.06,
-    exposure: 0.05,
-    gamma: 0.99,
-    shadows: 0.16,
-    highlights: -0.08,
-    saturation: -0.03,
-    sharpness: 0.04,
-    temperature: 0.02,
-  },
-  vividPrint: {
-    ...original,
-    brightness: 0.05,
-    contrast: 0.08,
+    ...neutral,
+    brightness: 0.02,
+    contrast: -0.04,
     exposure: 0.04,
-    gamma: 0.98,
-    shadows: 0.16,
-    highlights: -0.04,
-    saturation: 0.12,
-    sharpness: 0.2,
+    gamma: 0.99,
+    shadows: 0.1,
+    shadowRange: 0.45,
+    shadowFeather: 0.55,
+    highlights: -0.06,
+    blackPoint: 0.3,
+    saturation: -0.02,
+    clarity: 0.05,
+    sharpness: 0.05,
     temperature: 0.01,
   },
+  vividPrint: {
+    ...neutral,
+    brightness: 0.02,
+    contrast: 0.06,
+    exposure: 0.05,
+    gamma: 0.98,
+    shadows: 0.12,
+    shadowRange: 0.45,
+    shadowFeather: 0.55,
+    highlights: -0.03,
+    blackPoint: 0.3,
+    saturation: 0.14,
+    vibrance: 0.2,
+    clarity: 0.14,
+    sharpness: 0.18,
+    temperature: 0.01,
+  },
+  gentlePrintLift: {
+    ...neutral,
+    brightness: 0.02,
+    exposure: 0.04,
+    gamma: 0.99,
+    shadows: 0.14,
+    shadowRange: 0.48,
+    shadowFeather: 0.55,
+    highlights: -0.02,
+    blacks: 0.03,
+    blackPoint: 0.32,
+    saturation: 0.03,
+    vibrance: 0.1,
+    clarity: 0.1,
+    sharpness: 0.12,
+  },
+  shadowRecovery: {
+    ...neutral,
+    brightness: 0,
+    exposure: 0.05,
+    gamma: 0.98,
+    shadows: 0.20,
+    shadowRange: 0.52,
+    shadowFeather: 0.6,
+    highlights: -0.06,
+    blacks: 0.05,
+    blackPoint: 0.4,
+    saturation: 0.04,
+    vibrance: 0.12,
+    clarity: 0.1,
+    sharpness: 0.1,
+    faceProtection: 0.3,
+  },
+  balancedPrint: {
+    ...neutral,
+    brightness: 0.02,
+    contrast: 0.03,
+    exposure: 0.06,
+    gamma: 0.99,
+    shadows: 0.14,
+    shadowRange: 0.45,
+    shadowFeather: 0.5,
+    highlights: -0.03,
+    blacks: 0.02,
+    whites: 0.03,
+    blackPoint: 0.3,
+    saturation: 0.05,
+    vibrance: 0.12,
+    clarity: 0.1,
+    sharpness: 0.14,
+    temperature: 0.01,
+  },
+  darkSceneRecovery: {
+    ...neutral,
+    brightness: 0,
+    exposure: 0.08,
+    gamma: 0.97,
+    shadows: 0.28,
+    shadowRange: 0.58,
+    shadowFeather: 0.7,
+    highlights: -0.05,
+    blacks: 0.08,
+    blackPoint: 0.5,
+    saturation: 0.05,
+    vibrance: 0.18,
+    clarity: 0.16,
+    sharpness: 0.14,
+    faceProtection: 0.45,
+  },
+  detailPrint: {
+    ...neutral,
+    brightness: 0.01,
+    contrast: 0.05,
+    exposure: 0.04,
+    gamma: 0.99,
+    shadows: 0.15,
+    shadowRange: 0.45,
+    shadowFeather: 0.55,
+    highlights: -0.04,
+    blackPoint: 0.35,
+    saturation: 0.06,
+    vibrance: 0.15,
+    clarity: 0.2,
+    sharpness: 0.22,
+  },
 };
+
 const labels: Record<string, string> = {
   original: "Original",
   printLight: "Print Light",
@@ -79,18 +212,67 @@ const labels: Record<string, string> = {
   shadowDetail: "Shadow Detail",
   softPrint: "Soft Print",
   vividPrint: "Vivid Print",
+  gentlePrintLift: "Gentle Print Lift",
+  shadowRecovery: "Shadow Recovery",
+  balancedPrint: "Balanced Print",
+  darkSceneRecovery: "Dark Scene Recovery",
+  detailPrint: "Detail Print",
 };
-const controls: Array<[keyof EnhancementSettings, string, number, number]> = [
+
+type ControlDef = [keyof EnhancementSettings, string, number, number];
+
+const controls: ControlDef[] = [
+  // ── Light & exposure ─────────────────────────────────────────────
+  ["exposure", "Exposure", -0.5, 0.5],
   ["brightness", "Brightness", -0.3, 0.3],
   ["contrast", "Contrast", -0.3, 0.3],
-  ["exposure", "Exposure", -0.5, 0.5],
   ["gamma", "Gamma", 0.7, 1.3],
+  // ── Selective tonal (real, engine-backed) ────────────────────────
   ["shadows", "Shadows", -0.5, 0.5],
+  ["shadowRange", "Shadow Range", 0.15, 0.85],
+  ["shadowFeather", "Shadow Feather", 0, 1],
   ["highlights", "Highlights", -0.5, 0.5],
+  ["highlightRange", "Highlight Range", 0.15, 0.85],
+  ["highlightFeather", "Highlight Feather", 0, 1],
+  ["whites", "Whites", -0.5, 0.5],
+  ["blacks", "Blacks", -0.5, 0.5],
+  ["blackPoint", "Black Point", 0, 1],
+  // ── Color ────────────────────────────────────────────────────────
   ["saturation", "Saturation", -0.5, 0.5],
-  ["sharpness", "Sharpness", 0, 1],
+  ["vibrance", "Vibrance", -0.5, 0.5],
   ["temperature", "Warmth", -0.25, 0.25],
+  ["tint", "Tint", -0.25, 0.25],
+  // ── Local detail ─────────────────────────────────────────────────
+  ["clarity", "Local Contrast / Clarity", 0, 1],
+  ["sharpness", "Sharpness", 0, 1],
+  ["faceProtection", "Face Protection", 0, 1],
 ];
+
+const toTonalSettings = (s: EnhancementSettings) => ({
+  exposure: s.exposure,
+  brightness: s.brightness,
+  contrast: s.contrast,
+  gamma: s.gamma,
+  shadows: s.shadows,
+  shadowRange: s.shadowRange,
+  shadowFeather: s.shadowFeather,
+  highlights: s.highlights,
+  highlightRange: s.highlightRange,
+  highlightFeather: s.highlightFeather,
+  whites: s.whites,
+  blacks: s.blacks,
+  blackPoint: s.blackPoint,
+  saturation: s.saturation,
+  vibrance: s.vibrance,
+  temperature: s.temperature,
+  tint: s.tint,
+  clarity: s.clarity,
+  sharpness: s.sharpness,
+  faceProtection: s.faceProtection,
+});
+
+const hasActiveEnhancement = (s: EnhancementSettings): boolean =>
+  Object.entries(s).some(([key, value]) => value !== (key === "gamma" ? 1 : 0));
 
 type Props = {
   value?: EnhancementConfig | null;
@@ -108,94 +290,82 @@ export function PrintEnhancementPanel({ value, onChange, previewFile }: Props) {
     },
   );
   const [preview, setPreview] = useState<string | null>(null);
+  const previewBusy = useRef(false);
+
   useEffect(() => {
     if (value) setConfig(value);
   }, [value]);
+
+  // Debounced, reduced-resolution preview using the SAME tonal engine as the
+  // final export. Full-resolution images are never processed for preview.
   useEffect(() => {
     if (!previewFile) {
       setPreview(null);
       return;
     }
     let cancelled = false;
-    const sourceUrl = URL.createObjectURL(previewFile);
-    const image = new Image();
-    image.onload = () => {
-      if (cancelled) return;
-      const scale = Math.min(1, 900 / image.width);
-      const canvas = document.createElement("canvas");
-      canvas.width = Math.max(1, Math.round(image.width * scale));
-      canvas.height = Math.max(1, Math.round(image.height * scale));
-      const context = canvas.getContext("2d");
-      if (!context) return;
-      context.drawImage(image, 0, 0, canvas.width, canvas.height);
-      const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
-      const {
-        brightness,
-        exposure,
-        shadows,
-        gamma,
-        contrast,
-        saturation,
-        temperature,
-      } = config.settings;
-      for (let i = 0; i < pixels.data.length; i += 4) {
-        const luminance =
-          (0.2126 * pixels.data[i] +
-            0.7152 * pixels.data[i + 1] +
-            0.0722 * pixels.data[i + 2]) /
-          255;
-        const lift = shadows * 255 * Math.max(0, 1 - luminance * 2);
-        const factor = (1 + contrast) * (1 + contrast);
-        const midpoint = 128;
-        const values = [
-          pixels.data[i],
-          pixels.data[i + 1],
-          pixels.data[i + 2],
-        ].map((channel) => {
-          let value =
-            midpoint +
-            (channel * Math.pow(2, exposure) +
-              brightness * 255 +
-              lift -
-              midpoint) *
-              factor;
-          value =
-            255 * Math.pow(Math.min(255, Math.max(0, value)) / 255, gamma);
-          return value;
-        });
-        const mean = values.reduce((a, b) => a + b, 0) / 3;
-        pixels.data[i] = Math.min(
-          255,
-          Math.max(
-            0,
-            mean + (values[0] - mean) * (1 + saturation) + temperature * 255,
-          ),
-        );
-        pixels.data[i + 1] = Math.min(
-          255,
-          Math.max(0, mean + (values[1] - mean) * (1 + saturation)),
-        );
-        pixels.data[i + 2] = Math.min(
-          255,
-          Math.max(
-            0,
-            mean + (values[2] - mean) * (1 + saturation) - temperature * 255,
-          ),
-        );
-      }
-      context.putImageData(pixels, 0, 0);
-      setPreview(canvas.toDataURL("image/jpeg", 0.85));
-    };
-    image.src = sourceUrl;
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        if (previewBusy.current) return;
+        previewBusy.current = true;
+        try {
+          const bitmap = await createImageBitmap(previewFile);
+          if (cancelled) {
+            bitmap.close();
+            return;
+          }
+          const scale = Math.min(
+            1,
+            900 / Math.max(bitmap.width, bitmap.height),
+          );
+          const width = Math.max(1, Math.round(bitmap.width * scale));
+          const height = Math.max(1, Math.round(bitmap.height * scale));
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const context = canvas.getContext("2d", { willReadFrequently: true });
+          if (!context) {
+            bitmap.close();
+            return;
+          }
+          // Composite onto white first: the preview is encoded as JPEG (no
+          // alpha), and transparent pixels would otherwise flatten onto black
+          // and make the "After" image appear fully black.
+          context.fillStyle = "#ffffff";
+          context.fillRect(0, 0, width, height);
+          context.drawImage(bitmap, 0, 0, width, height);
+          bitmap.close();
+
+          if (hasActiveEnhancement(config.settings)) {
+            const imageData = context.getImageData(0, 0, width, height);
+            applyTonalEnhancement(
+              imageData.data,
+              width,
+              height,
+              4,
+              normalizeTonalSettings(toTonalSettings(config.settings)),
+            );
+            context.putImageData(imageData, 0, 0);
+          }
+
+          if (cancelled) return;
+          setPreview(canvas.toDataURL("image/jpeg", 0.85));
+        } finally {
+          previewBusy.current = false;
+        }
+      })();
+    }, 180);
     return () => {
       cancelled = true;
-      URL.revokeObjectURL(sourceUrl);
+      window.clearTimeout(timer);
     };
   }, [previewFile, config.settings]);
+
   const commit = (next: EnhancementConfig) => {
     setConfig(next);
     void onChange(next);
   };
+
   const selected = useMemo(
     () =>
       config.presetId && labels[config.presetId]
@@ -203,15 +373,18 @@ export function PrintEnhancementPanel({ value, onChange, previewFile }: Props) {
         : "Custom",
     [config.presetId],
   );
+
   return (
     <section className="surface-card p-6 space-y-5">
       <div>
         <h2 className="text-xl font-extrabold">Print / Image Enhancement</h2>
         <p className="text-sm text-muted-foreground">
-          Adjust image pixels for print while preserving original uploads and
-          sharp story text.
+          Selective tonal editing for print. Shadows, highlights, blacks and
+          whites each work on their own luminance range — faces and highlights
+          stay protected. Original uploads are never modified.
         </p>
       </div>
+
       <div className="flex flex-wrap gap-2">
         {Object.keys(presets).map((id) => (
           <Button
@@ -223,7 +396,7 @@ export function PrintEnhancementPanel({ value, onChange, previewFile }: Props) {
                 enabled: id !== "original",
                 mode: "preset",
                 presetId: id,
-                settings: presets[id],
+                settings: { ...presets[id] },
               })
             }
           >
@@ -238,7 +411,7 @@ export function PrintEnhancementPanel({ value, onChange, previewFile }: Props) {
               enabled: false,
               mode: "preset",
               presetId: "original",
-              settings: original,
+              settings: { ...original },
             })
           }
         >
@@ -246,6 +419,7 @@ export function PrintEnhancementPanel({ value, onChange, previewFile }: Props) {
           Reset
         </Button>
       </div>
+
       <label className="flex items-center gap-2 text-sm font-semibold">
         <input
           type="checkbox"
@@ -255,9 +429,11 @@ export function PrintEnhancementPanel({ value, onChange, previewFile }: Props) {
         Enable for entire Storybook{" "}
         <span className="text-muted-foreground">({selected})</span>
       </label>
+
       {preview && previewFile && (
         <div className="grid grid-cols-2 gap-3">
           <figure>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={URL.createObjectURL(previewFile)}
               alt="Original preview"
@@ -266,6 +442,7 @@ export function PrintEnhancementPanel({ value, onChange, previewFile }: Props) {
             <figcaption className="text-xs mt-1">Before</figcaption>
           </figure>
           <figure>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={preview}
               alt="Enhanced preview"
@@ -277,6 +454,7 @@ export function PrintEnhancementPanel({ value, onChange, previewFile }: Props) {
           </figure>
         </div>
       )}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {controls.map(([key, label, min, max]) => (
           <label key={key} className="text-sm font-semibold">
@@ -302,6 +480,7 @@ export function PrintEnhancementPanel({ value, onChange, previewFile }: Props) {
           </label>
         ))}
       </div>
+
       <Button
         type="button"
         variant="outline"

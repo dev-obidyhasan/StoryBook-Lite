@@ -78,10 +78,21 @@ export type EnhancementSettings = {
   exposure: number;
   gamma: number;
   shadows: number;
+  shadowRange: number;
+  shadowFeather: number;
   highlights: number;
+  highlightRange: number;
+  highlightFeather: number;
+  whites: number;
+  blacks: number;
+  blackPoint: number;
   saturation: number;
-  sharpness: number;
+  vibrance: number;
   temperature: number;
+  tint: number;
+  clarity: number;
+  sharpness: number;
+  faceProtection: number;
 };
 export type EnhancementConfig = {
   enabled: boolean;
