@@ -185,7 +185,10 @@ export function OrderImagesPage({ orderId }: { orderId: string }) {
       }
 
       toast.loading("Generating PDF...", { id: "pdf-upload" });
-      const blob = await ordersService.generateOrderPDF(orderId, enhancement);
+      const { blob, enhancementApplied } = await ordersService.generateOrderPDF(
+        orderId,
+        enhancement,
+      );
       toast.dismiss("pdf-upload");
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -196,7 +199,13 @@ export function OrderImagesPage({ orderId }: { orderId: string }) {
       a.remove();
       URL.revokeObjectURL(url);
 
-      toast.success("PDF generated successfully!");
+      if (enhancement.enabled && !enhancementApplied) {
+        toast.warning(
+          "PDF generated, but the server did not apply print enhancement. Redeploy the backend with the latest code.",
+        );
+      } else {
+        toast.success("PDF generated successfully!");
+      }
     } catch (err) {
       toast.dismiss("pdf-upload");
       toast.error(

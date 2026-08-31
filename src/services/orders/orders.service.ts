@@ -56,7 +56,7 @@ export const ordersService = {
   generateOrderPDF: async (
     orderId: string,
     enhancement?: unknown,
-  ): Promise<Blob> => {
+  ): Promise<{ blob: Blob; enhancementApplied: boolean }> => {
     const query = enhancement
       ? `?enhancement=${encodeURIComponent(JSON.stringify(enhancement))}`
       : "";
@@ -78,7 +78,11 @@ export const ordersService = {
 
     const json = (await response.json()) as {
       success: boolean;
-      data?: { base64?: string; mimeType?: string };
+      data?: {
+        base64?: string;
+        mimeType?: string;
+        enhancementApplied?: boolean;
+      };
       error?: { message?: string };
     };
 
@@ -93,8 +97,11 @@ export const ordersService = {
       byteNumbers[i] = byteCharacters.charCodeAt(i);
     }
     const byteArray = new Uint8Array(byteNumbers);
-    return new Blob([byteArray], {
-      type: json.data.mimeType || "application/pdf",
-    });
+    return {
+      blob: new Blob([byteArray], {
+        type: json.data.mimeType || "application/pdf",
+      }),
+      enhancementApplied: Boolean(json.data.enhancementApplied),
+    };
   },
 };
