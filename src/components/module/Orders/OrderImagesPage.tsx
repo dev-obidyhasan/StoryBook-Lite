@@ -47,6 +47,10 @@ export function OrderImagesPage({ orderId }: { orderId: string }) {
 
   // Bulk Upload State
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const enhancementSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const enhancementRequestRef = useRef(0);
 
   useEffect(() => {
     setIsLoading(true);
@@ -58,6 +62,14 @@ export function OrderImagesPage({ orderId }: { orderId: string }) {
       .catch(() => toast.error("Failed to load order."))
       .finally(() => setIsLoading(false));
   }, [orderId]);
+
+  useEffect(
+    () => () => {
+      if (enhancementSaveTimerRef.current)
+        clearTimeout(enhancementSaveTimerRef.current);
+    },
+    [],
+  );
 
   const handleBulkFiles = (files: File[]) => {
     if (!order || !order.template) return;
@@ -125,13 +137,24 @@ export function OrderImagesPage({ orderId }: { orderId: string }) {
     toast.success(`Successfully mapped ${mappedCount} images to pages.`);
   };
 
-  const saveEnhancement = async (next: EnhancementConfig) => {
+  const saveEnhancement = (next: EnhancementConfig) => {
     setEnhancement(next);
-    try {
-      await ordersService.saveEnhancement(orderId, next);
-    } catch {
-      toast.error("Failed to save print enhancement");
-    }
+    if (enhancementSaveTimerRef.current)
+      clearTimeout(enhancementSaveTimerRef.current);
+    const requestId = ++enhancementRequestRef.current;
+    enhancementSaveTimerRef.current = setTimeout(async () => {
+      try {
+        await ordersService.saveEnhancement(orderId, next);
+      } catch (error) {
+        if (requestId === enhancementRequestRef.current) {
+          toast.error(
+            error instanceof Error
+              ? error.message
+              : "Failed to save print enhancement",
+          );
+        }
+      }
+    }, 400);
   };
 
   const handleGeneratePDF = async () => {
