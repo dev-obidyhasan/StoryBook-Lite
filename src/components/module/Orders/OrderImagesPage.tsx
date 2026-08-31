@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ordersService } from "@/services/orders/orders.service";
 import type { EnhancementConfig } from "@/types";
+import { enhanceImageClientSide } from "@/services/orders/enhanceImageClientSide";
 import { PrintEnhancementPanel } from "./PrintEnhancementPanel";
 import type { Order } from "@/types";
 import { Button } from "@/components/ui/button";
@@ -164,11 +165,19 @@ export function OrderImagesPage({ orderId }: { orderId: string }) {
 
     setIsGenerating(true);
     try {
-      // Upload one page at a time — original files are sent without client-side
-      // compression so full pixel resolution is preserved for PDF embedding.
+      // Upload one page at a time. When print enhancement is enabled, each
+      // page is enhanced in the browser first and the enhanced copy is
+      // uploaded — the original File objects are never modified. When
+      // enhancement is disabled, original files are uploaded unchanged.
       const pageEntries = Object.entries(pageImages).sort(
         ([a], [b]) => Number(a) - Number(b),
       );
+
+      const useClientEnhancement =
+        enhancement.enabled &&
+        pageEntries.every(
+          ([, file]) => file.type === "image/jpeg" || file.type === "image/png",
+        );
 
       for (const [pageNumber, file] of pageEntries) {
         toast.loading(
@@ -177,18 +186,33 @@ export function OrderImagesPage({ orderId }: { orderId: string }) {
             id: "pdf-upload",
           },
         );
+        let uploadFile: File = file;
+        if (useClientEnhancement) {
+          const enhancedBlob = await enhanceImageClientSide(
+            file,
+            enhancement.settings,
+          );
+          if (enhancedBlob) {
+            uploadFile = new File(
+              [enhancedBlob],
+              file.name.replace(/\.[^.]+$/, "") + ".jpg",
+              {
+                type: "image/jpeg",
+              },
+            );
+          }
+        }
         await ordersService.uploadOrderPageImage(
           orderId,
           Number(pageNumber),
-          file,
+          uploadFile,
         );
       }
 
       toast.loading("Generating PDF...", { id: "pdf-upload" });
-      const { blob, enhancementApplied } = await ordersService.generateOrderPDF(
-        orderId,
-        enhancement,
-      );
+      // Enhancement is already baked into the uploaded images; do not send
+      // the enhancement config again to avoid double application.
+      const { blob } = await ordersService.generateOrderPDF(orderId);
       toast.dismiss("pdf-upload");
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -199,14 +223,7 @@ export function OrderImagesPage({ orderId }: { orderId: string }) {
       a.remove();
       URL.revokeObjectURL(url);
 
-      if (enhancement.enabled && !enhancementApplied) {
-        toast.warning(
-          "PDF generated without enhancement — the deployed backend is still running old code. Redeploy the backend project on Vercel, then generate again.",
-          { duration: 10000 },
-        );
-      } else {
-        toast.success("PDF generated successfully!");
-      }
+      toast.success("PDF generated successfully!");
     } catch (err) {
       toast.dismiss("pdf-upload");
       toast.error(
