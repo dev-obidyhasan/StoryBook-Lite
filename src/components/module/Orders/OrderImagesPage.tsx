@@ -201,7 +201,8 @@ export function OrderImagesPage({ orderId }: { orderId: string }) {
 
       if (enhancement.enabled && !enhancementApplied) {
         toast.warning(
-          "PDF generated, but the server did not apply print enhancement. Redeploy the backend with the latest code.",
+          "PDF generated without enhancement — the deployed backend is still running old code. Redeploy the backend project on Vercel, then generate again.",
+          { duration: 10000 },
         );
       } else {
         toast.success("PDF generated successfully!");

@@ -57,19 +57,15 @@ export const ordersService = {
     orderId: string,
     enhancement?: unknown,
   ): Promise<{ blob: Blob; enhancementApplied: boolean }> => {
-    const query = enhancement
-      ? `?enhancement=${encodeURIComponent(JSON.stringify(enhancement))}`
-      : "";
-    const response = await fetch(
-      `${API_BASE}/orders/${orderId}/generate${query}`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${tokenStore.get()}`,
-          Accept: "application/json",
-        },
+    const response = await fetch(`${API_BASE}/orders/${orderId}/generate`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${tokenStore.get()}`,
+        Accept: "application/json",
+        "Content-Type": "application/json",
       },
-    );
+      body: JSON.stringify({ enhancement: enhancement ?? null }),
+    });
 
     if (!response.ok) {
       const errJson = await response.json().catch(() => null);
