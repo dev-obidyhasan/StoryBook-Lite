@@ -18,6 +18,11 @@ export const ordersService = {
   getOrderById: (id: string) =>
     clientFetch.get<ApiResponse<Order>>(`/orders/${id}`),
 
+  updateOrderEnhancement: (id: string, enhancement: unknown) =>
+    clientFetch.patch<ApiResponse<Order>>(`/orders/${id}/enhancement`, {
+      body: JSON.stringify({ enhancement }),
+    }),
+
   /** Upload a single page image (keeps each request under Vercel's 4.5MB limit). */
   uploadOrderPageImage: async (
     orderId: string,

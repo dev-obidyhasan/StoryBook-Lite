@@ -157,6 +157,10 @@ export function OrderImagesPage({ orderId }: { orderId: string }) {
     } catch {
       // The current editing session still works when browser storage is unavailable.
     }
+    // Asynchronously persist to backend DB so order record stores enhancement
+    ordersService.updateOrderEnhancement(orderId, next).catch((err) => {
+      console.warn("Failed to persist order enhancement to DB:", err);
+    });
   };
 
   const handleGeneratePDF = async () => {
