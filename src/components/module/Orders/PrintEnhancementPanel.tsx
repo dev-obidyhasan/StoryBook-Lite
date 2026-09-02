@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { RotateCcw, Save } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { RotateCcw, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import type { EnhancementConfig, EnhancementSettings } from "@/types";
@@ -9,6 +9,9 @@ import {
   applyTonalEnhancement,
   normalizeTonalSettings,
 } from "@/services/orders/tonalEngine";
+import { presetsService } from "@/services/presets/presets.service";
+import type { EnhancementPresetDTO } from "@/services/presets/presets.service";
+import { SavePresetModal } from "./SavePresetModal";
 
 const neutral: EnhancementSettings = {
   brightness: 0,
@@ -36,7 +39,7 @@ const neutral: EnhancementSettings = {
 const original: EnhancementSettings = { ...neutral };
 
 /** Same ids as the backend ENHANCEMENT_PRESETS (backward compatible). */
-const presets: Record<string, EnhancementSettings> = {
+const SYSTEM_PRESETS: Record<string, EnhancementSettings> = {
   original,
   printLight: {
     ...neutral,
@@ -205,7 +208,7 @@ const presets: Record<string, EnhancementSettings> = {
   },
 };
 
-const labels: Record<string, string> = {
+const SYSTEM_PRESET_LABELS: Record<string, string> = {
   original: "Original",
   printLight: "Print Light",
   brightPrint: "Bright Print",
@@ -292,9 +295,32 @@ export function PrintEnhancementPanel({ value, onChange, previewFile }: Props) {
   const [preview, setPreview] = useState<string | null>(null);
   const previewBusy = useRef(false);
 
+  // ── Custom presets loaded from the API ───────────────────────────
+  const [customPresets, setCustomPresets] = useState<EnhancementPresetDTO[]>([]);
+  const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+  const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
+
+  // Sync when parent value changes
   useEffect(() => {
     if (value) setConfig(value);
   }, [value]);
+
+  // Load custom presets from the API on mount
+  const loadCustomPresets = useCallback(async () => {
+    try {
+      const res = await presetsService.listPresets();
+      if (res.success && res.data) {
+        // Filter out system presets — they are already hardcoded in SYSTEM_PRESETS
+        setCustomPresets(res.data.filter((p) => !p.isSystem));
+      }
+    } catch {
+      // Non-critical — silently skip; the hardcoded system presets still work
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadCustomPresets();
+  }, [loadCustomPresets]);
 
   // Debounced, reduced-resolution preview using the SAME tonal engine as the
   // final export. Full-resolution images are never processed for preview.
@@ -329,8 +355,7 @@ export function PrintEnhancementPanel({ value, onChange, previewFile }: Props) {
             return;
           }
           // Composite onto white first: the preview is encoded as JPEG (no
-          // alpha), and transparent pixels would otherwise flatten onto black
-          // and make the "After" image appear fully black.
+          // alpha), and transparent pixels would otherwise flatten onto black.
           context.fillStyle = "#ffffff";
           context.fillRect(0, 0, width, height);
           context.drawImage(bitmap, 0, 0, width, height);
@@ -366,13 +391,53 @@ export function PrintEnhancementPanel({ value, onChange, previewFile }: Props) {
     void onChange(next);
   };
 
-  const selected = useMemo(
-    () =>
-      config.presetId && labels[config.presetId]
-        ? labels[config.presetId]
-        : "Custom",
-    [config.presetId],
-  );
+  const selected = useMemo(() => {
+    if (config.presetId) {
+      if (SYSTEM_PRESET_LABELS[config.presetId])
+        return SYSTEM_PRESET_LABELS[config.presetId];
+      const custom = customPresets.find((p) => p.id === config.presetId);
+      if (custom) return custom.name;
+    }
+    return "Custom";
+  }, [config.presetId, customPresets]);
+
+  const handlePresetSaved = (preset: EnhancementPresetDTO) => {
+    // Add to local list immediately (no re-fetch needed)
+    setCustomPresets((prev) => [...prev, preset]);
+    // Auto-select the new preset
+    commit({
+      enabled: true,
+      mode: "preset",
+      presetId: preset.id,
+      settings: preset.settings as EnhancementSettings,
+    });
+    setIsSaveModalOpen(false);
+    toast.success(`Preset "${preset.name}" saved and selected.`);
+  };
+
+  const handleDeleteCustomPreset = async (preset: EnhancementPresetDTO) => {
+    setIsDeletingId(preset.id);
+    try {
+      await presetsService.deletePreset(preset.id);
+      setCustomPresets((prev) => prev.filter((p) => p.id !== preset.id));
+      // If the deleted preset was selected, fall back to Original
+      if (config.presetId === preset.id) {
+        commit({
+          enabled: false,
+          mode: "preset",
+          presetId: "original",
+          settings: { ...original },
+        });
+      }
+      toast.success(`Preset "${preset.name}" deleted.`);
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to delete preset.",
+      );
+    } finally {
+      setIsDeletingId(null);
+    }
+  };
 
   return (
     <section className="surface-card p-6 space-y-5">
@@ -385,27 +450,88 @@ export function PrintEnhancementPanel({ value, onChange, previewFile }: Props) {
         </p>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        {Object.keys(presets).map((id) => (
-          <Button
-            key={id}
-            type="button"
-            variant={config.presetId === id ? "default" : "outline"}
-            onClick={() =>
-              commit({
-                enabled: id !== "original",
-                mode: "preset",
-                presetId: id,
-                settings: { ...presets[id] },
-              })
-            }
-          >
-            {labels[id]}
-          </Button>
-        ))}
+      {/* ── System presets ──────────────────────────────────────── */}
+      <div>
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+          System Presets
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {Object.keys(SYSTEM_PRESETS).map((id) => (
+            <Button
+              key={id}
+              type="button"
+              variant={config.presetId === id ? "default" : "outline"}
+              size="sm"
+              onClick={() =>
+                commit({
+                  enabled: id !== "original",
+                  mode: "preset",
+                  presetId: id,
+                  settings: { ...SYSTEM_PRESETS[id] },
+                })
+              }
+            >
+              {SYSTEM_PRESET_LABELS[id]}
+            </Button>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Custom (user-saved) presets ─────────────────────────── */}
+      {customPresets.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+            My Presets
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {customPresets.map((preset) => (
+              <div key={preset.id} className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  variant={config.presetId === preset.id ? "default" : "outline"}
+                  size="sm"
+                  onClick={() =>
+                    commit({
+                      enabled: true,
+                      mode: "preset",
+                      presetId: preset.id,
+                      settings: preset.settings as EnhancementSettings,
+                    })
+                  }
+                >
+                  {preset.name}
+                </Button>
+                <button
+                  type="button"
+                  onClick={() => void handleDeleteCustomPreset(preset)}
+                  disabled={isDeletingId === preset.id}
+                  title={`Delete preset "${preset.name}"`}
+                  aria-label={`Delete preset ${preset.name}`}
+                  className="p-1 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-40"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-center gap-3">
+        <label className="flex items-center gap-2 text-sm font-semibold">
+          <input
+            type="checkbox"
+            checked={config.enabled}
+            onChange={(e) => commit({ ...config, enabled: e.target.checked })}
+          />{" "}
+          Enable for entire Storybook{" "}
+          <span className="text-muted-foreground">({selected})</span>
+        </label>
+
         <Button
           type="button"
           variant="outline"
+          size="sm"
           onClick={() =>
             commit({
               enabled: false,
@@ -415,21 +541,12 @@ export function PrintEnhancementPanel({ value, onChange, previewFile }: Props) {
             })
           }
         >
-          <RotateCcw className="w-4 h-4 mr-2" />
+          <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
           Reset
         </Button>
       </div>
 
-      <label className="flex items-center gap-2 text-sm font-semibold">
-        <input
-          type="checkbox"
-          checked={config.enabled}
-          onChange={(e) => commit({ ...config, enabled: e.target.checked })}
-        />{" "}
-        Enable for entire Storybook{" "}
-        <span className="text-muted-foreground">({selected})</span>
-      </label>
-
+      {/* ── Before / After preview ──────────────────────────────── */}
       {preview && previewFile && (
         <div className="grid grid-cols-2 gap-3">
           <figure>
@@ -455,6 +572,7 @@ export function PrintEnhancementPanel({ value, onChange, previewFile }: Props) {
         </div>
       )}
 
+      {/* ── Slider controls ─────────────────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {controls.map(([key, label, min, max]) => (
           <label key={key} className="text-sm font-semibold">
@@ -481,18 +599,37 @@ export function PrintEnhancementPanel({ value, onChange, previewFile }: Props) {
         ))}
       </div>
 
-      <Button
-        type="button"
-        variant="outline"
-        onClick={() =>
-          toast.success(
-            "Custom settings are saved to this order and reusable in the enhancement controls.",
-          )
-        }
-      >
-        <Save className="w-4 h-4 mr-2" />
-        Save Custom Settings
-      </Button>
+      {/* ── Save as Preset button ───────────────────────────────── */}
+      <div className="pt-1">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => setIsSaveModalOpen(true)}
+          disabled={!hasActiveEnhancement(config.settings)}
+          title={
+            !hasActiveEnhancement(config.settings)
+              ? "Adjust at least one setting before saving"
+              : "Save the current settings as a reusable preset"
+          }
+        >
+          <Save className="w-4 h-4 mr-2" />
+          Save as Preset…
+        </Button>
+        {!hasActiveEnhancement(config.settings) && (
+          <p className="text-xs text-muted-foreground mt-1.5">
+            Adjust any setting above to enable saving.
+          </p>
+        )}
+      </div>
+
+      {/* ── Save Preset Modal ───────────────────────────────────── */}
+      {isSaveModalOpen && (
+        <SavePresetModal
+          settings={config.settings}
+          onSaved={handlePresetSaved}
+          onClose={() => setIsSaveModalOpen(false)}
+        />
+      )}
     </section>
   );
 }

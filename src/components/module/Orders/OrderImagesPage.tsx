@@ -12,10 +12,8 @@ import {
   UploadCloud,
 } from "lucide-react";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
 import { ordersService } from "@/services/orders/orders.service";
 import type { EnhancementConfig } from "@/types";
-import { enhanceImageClientSide } from "@/services/orders/enhanceImageClientSide";
 import { PrintEnhancementPanel } from "./PrintEnhancementPanel";
 import type { Order } from "@/types";
 import { Button } from "@/components/ui/button";
@@ -176,19 +174,20 @@ export function OrderImagesPage({ orderId }: { orderId: string }) {
 
     setIsGenerating(true);
     try {
-      // Upload one page at a time. When print enhancement is enabled, each
-      // page is enhanced in the browser first and the enhanced copy is
-      // uploaded — the original File objects are never modified. When
-      // enhancement is disabled, original files are uploaded unchanged.
+      // Upload one page at a time.
+      //
+      // QUALITY FIX: Original files are always uploaded unchanged — no
+      // client-side re-encoding or quality reduction is applied here.
+      // When enhancement is enabled the enhancement settings are sent to the
+      // backend `generateOrderPDF` call so the server applies them at full
+      // resolution via the lossless Sharp pipeline (enhanceImage() in
+      // ImageEnhancement.ts → PNG output → PDF compositor). This preserves
+      // the original image quality in the final PDF and avoids the JPEG
+      // quality-drop loop that previously compressed files to as low as 70%
+      // quality just to satisfy the upload size limit.
       const pageEntries = Object.entries(pageImages).sort(
         ([a], [b]) => Number(a) - Number(b),
       );
-
-      const useClientEnhancement =
-        enhancement.enabled &&
-        pageEntries.every(
-          ([, file]) => file.type === "image/jpeg" || file.type === "image/png",
-        );
 
       for (const [pageNumber, file] of pageEntries) {
         toast.loading(
@@ -197,33 +196,28 @@ export function OrderImagesPage({ orderId }: { orderId: string }) {
             id: "pdf-upload",
           },
         );
-        let uploadFile: File = file;
-        if (useClientEnhancement) {
-          const enhancedBlob = await enhanceImageClientSide(
-            file,
-            enhancement.settings,
-          );
-          if (enhancedBlob) {
-            uploadFile = new File(
-              [enhancedBlob],
-              file.name.replace(/\.[^.]+$/, "") + ".jpg",
-              {
-                type: "image/jpeg",
-              },
-            );
-          }
-        }
+        // Upload the original file directly — no enhancement applied here.
         await ordersService.uploadOrderPageImage(
           orderId,
           Number(pageNumber),
-          uploadFile,
+          file,
         );
       }
 
       toast.loading("Generating PDF...", { id: "pdf-upload" });
-      // Enhancement is already baked into the uploaded images; do not send
-      // the enhancement config again to avoid double application.
-      const { blob } = await ordersService.generateOrderPDF(orderId);
+
+      // Pass enhancement settings to the backend so it can apply full-resolution
+      // enhancement server-side before compositing into the PDF. When enhancement
+      // is disabled, pass null so the backend uses original images as-is.
+      const enhancementPayload =
+        enhancement.enabled
+          ? { enabled: true, settings: enhancement.settings }
+          : null;
+
+      const { blob } = await ordersService.generateOrderPDF(
+        orderId,
+        enhancementPayload,
+      );
       toast.dismiss("pdf-upload");
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
