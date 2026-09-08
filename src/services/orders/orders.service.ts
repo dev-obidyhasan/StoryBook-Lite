@@ -10,6 +10,64 @@ export type CreateOrderPayload = {
   templateId: string;
 };
 
+/**
+ * Ensures an image file stays safely under Vercel's 4.5MB serverless payload limit.
+ * Files <= 3.8MB are returned unchanged.
+ * Larger files are resized down (max 2500px dimension, high 0.92 JPEG quality)
+ * to keep the payload size under 3.5MB while preserving print quality.
+ */
+async function prepareFileForUpload(file: File): Promise<File> {
+  const MAX_BYTES = 3.8 * 1024 * 1024;
+  if (file.size <= MAX_BYTES) return file;
+
+  return new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const canvas = document.createElement("canvas");
+      let { width, height } = img;
+      const MAX_DIM = 2500;
+      if (width > MAX_DIM || height > MAX_DIM) {
+        if (width > height) {
+          height = Math.round((height * MAX_DIM) / width);
+          width = MAX_DIM;
+        } else {
+          width = Math.round((width * MAX_DIM) / height);
+          height = MAX_DIM;
+        }
+      }
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return resolve(file);
+      ctx.drawImage(img, 0, 0, width, height);
+
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) return resolve(file);
+          const optimizedFile = new File(
+            [blob],
+            file.name.replace(/\.[^.]+$/, ".jpg"),
+            {
+              type: "image/jpeg",
+              lastModified: Date.now(),
+            },
+          );
+          resolve(optimizedFile);
+        },
+        "image/jpeg",
+        0.92,
+      );
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve(file);
+    };
+    img.src = url;
+  });
+}
+
 export const ordersService = {
   createOrder: (data: CreateOrderPayload) =>
     clientFetch.post<ApiResponse<Order>>("/orders", {
@@ -38,8 +96,9 @@ export const ordersService = {
     file: File,
     onUploadProgress?: (percent: number) => void,
   ): Promise<void> => {
+    const fileToUpload = await prepareFileForUpload(file);
     const formData = new FormData();
-    formData.append("image", file);
+    formData.append("image", fileToUpload);
 
     const response = await xhrFetch(
       `${API_BASE}/orders/${orderId}/pages/${pageNumber}/image`,
