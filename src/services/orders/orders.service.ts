@@ -1,4 +1,5 @@
 import { clientFetch, tokenStore } from "@/helper/client-fetch";
+import { xhrFetch } from "@/helper/xhr-fetch";
 import type { ApiResponse, Order } from "@/types";
 
 const API_BASE =
@@ -23,20 +24,29 @@ export const ordersService = {
       body: JSON.stringify({ enhancement }),
     }),
 
-  /** Upload a single page image (keeps each request under Vercel's 4.5MB limit). */
+  /** Upload a single page image (keeps each request under Vercel's 4.5MB limit).
+   *
+   * Uses XMLHttpRequest (xhrFetch) instead of window.fetch because
+   * download-manager browser extensions patch `window.fetch` and their
+   * broken bridge rejects requests with "Receiving end does not exist"
+   * (surfacing as a bogus CORS error). XHR is not patched by those
+   * extensions, so uploads are guaranteed to reach the server.
+   */
   uploadOrderPageImage: async (
     orderId: string,
     pageNumber: number,
     file: File,
+    onUploadProgress?: (percent: number) => void,
   ): Promise<void> => {
     const formData = new FormData();
     formData.append("image", file);
 
-    const response = await fetch(
+    const response = await xhrFetch(
       `${API_BASE}/orders/${orderId}/pages/${pageNumber}/image`,
       {
         method: "POST",
         body: formData,
+        onUploadProgress,
         headers: {
           Authorization: `Bearer ${tokenStore.get()}`,
         },
@@ -62,7 +72,9 @@ export const ordersService = {
     orderId: string,
     enhancement?: unknown,
   ): Promise<{ blob: Blob; enhancementApplied: boolean }> => {
-    const response = await fetch(`${API_BASE}/orders/${orderId}/generate`, {
+    // Also routed through XMLHttpRequest so extension-patched window.fetch
+    // cannot break the PDF generation request.
+    const response = await xhrFetch(`${API_BASE}/orders/${orderId}/generate`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${tokenStore.get()}`,
