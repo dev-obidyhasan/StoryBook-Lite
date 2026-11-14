@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Save, Loader2, Maximize, Layers, User, CheckCircle2, Image as ImageIcon } from "lucide-react";
+import { ArrowLeft, Save, Loader2, Maximize, Layers, User, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { templatesService } from "@/services/templates/templates.service";
 import { ordersService } from "@/services/orders/orders.service";
@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import Link from "next/link";
-import Image from "next/image";
 import type { ActiveTemplate } from "@/types";
 import { cn } from "@/lib/utils";
 
@@ -121,7 +120,6 @@ export function CreateOrderPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
               {[1, 2, 3].map(i => (
                 <div key={i} className="surface-card p-4 space-y-4">
-                  <Skeleton className="w-full aspect-[4/3] rounded-xl" />
                   <Skeleton className="h-6 w-3/4 rounded-md" />
                   <Skeleton className="h-4 w-1/2 rounded-md" />
                 </div>
@@ -160,22 +158,6 @@ export function CreateOrderPage() {
                       <CheckCircle2 className="w-4 h-4 text-primary-foreground" />
                     </div>
                   )}
-
-                  <div className="aspect-[4/3] relative bg-muted/30 border-b border-border/50">
-                    {t.coverImage ? (
-                      <Image
-                        src={t.coverImage}
-                        alt={t.name}
-                        fill
-                        className="object-cover transition-transform duration-500 group-hover:scale-105"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground gap-2">
-                        <ImageIcon className="w-8 h-8 opacity-50" />
-                        <span className="text-xs font-medium">No Cover</span>
-                      </div>
-                    )}
-                  </div>
 
                   <div className="p-5 space-y-3">
                     <h3 className="font-bold text-base text-foreground line-clamp-1">{t.name}</h3>

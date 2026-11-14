@@ -24,6 +24,7 @@ export type UpdateTemplatePayload = Partial<{
   width: number;
   height: number;
   unit: DimensionUnit;
+  totalPages: number;
   status: TemplateStatus;
 }>;
 

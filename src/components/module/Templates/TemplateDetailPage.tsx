@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ArrowLeft, Save, Loader2, CheckCircle2, Download, AlertCircle, Maximize, Layers } from "lucide-react";
 import { toast } from "sonner";
 import { templatesService } from "@/services/templates/templates.service";
-import type { BookTemplate, TemplatePage } from "@/types";
+import type { BookTemplate, DimensionUnit } from "@/types";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +22,15 @@ export function TemplateDetailPage({ templateId }: { templateId: string }) {
   // Admin Editing State
   const [isSaving, setIsSaving] = useState(false);
   const [pagesText, setPagesText] = useState<Record<number, string>>({});
+  const [templateForm, setTemplateForm] = useState({
+    name: "",
+    slug: "",
+    coverImage: "",
+    width: "",
+    height: "",
+    unit: "INCH" as DimensionUnit,
+    totalPages: "",
+  });
 
   // User Generation State
   const [pageImages, setPageImages] = useState<Record<number, File>>({});
@@ -32,6 +41,17 @@ export function TemplateDetailPage({ templateId }: { templateId: string }) {
     templatesService.getTemplateById(templateId)
       .then((res) => {
         setTemplate(res.data);
+        if (res.data) {
+          setTemplateForm({
+            name: res.data.name,
+            slug: res.data.slug,
+            coverImage: res.data.coverImage ?? "",
+            width: String(res.data.width),
+            height: String(res.data.height),
+            unit: res.data.unit,
+            totalPages: String(res.data.totalPages),
+          });
+        }
         if (res.data?.pages) {
           const textMap: Record<number, string> = {};
           res.data.pages.forEach(p => {
@@ -43,6 +63,57 @@ export function TemplateDetailPage({ templateId }: { templateId: string }) {
       .catch(() => toast.error("Failed to load template."))
       .finally(() => setIsLoading(false));
   }, [templateId]);
+
+  const handleTemplateChange = (
+    event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
+  ) => {
+    setTemplateForm((previous) => ({
+      ...previous,
+      [event.target.name]: event.target.value,
+    }));
+  };
+
+  const handleSaveTemplate = async (event: React.FormEvent) => {
+    event.preventDefault();
+
+    const width = Number(templateForm.width);
+    const height = Number(templateForm.height);
+    const totalPages = Number(templateForm.totalPages);
+    if (!templateForm.name.trim()) return toast.error("Template name is required.");
+    if (!templateForm.slug.trim()) return toast.error("Template slug is required.");
+    if (!(width > 0) || !(height > 0)) return toast.error("Width and height must be greater than zero.");
+    if (!Number.isInteger(totalPages) || totalPages < 1) return toast.error("Total pages must be a positive whole number.");
+
+    setIsSaving(true);
+    try {
+      const res = await templatesService.updateTemplate(templateId, {
+        name: templateForm.name.trim(),
+        slug: templateForm.slug.trim(),
+        coverImage: templateForm.coverImage.trim(),
+        width,
+        height,
+        unit: templateForm.unit,
+        totalPages,
+      });
+      if (res.data) {
+        setTemplate(res.data);
+        setTemplateForm({
+          name: res.data.name,
+          slug: res.data.slug,
+          coverImage: res.data.coverImage ?? "",
+          width: String(res.data.width),
+          height: String(res.data.height),
+          unit: res.data.unit,
+          totalPages: String(res.data.totalPages),
+        });
+      }
+      toast.success("Template information saved successfully.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to save template information.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const handleSaveText = async () => {
     if (!template) return;
@@ -184,36 +255,85 @@ export function TemplateDetailPage({ templateId }: { templateId: string }) {
 
       {/* Admin Story Text Editor */}
       {isAdmin ? (
-        <div className="surface-card p-6 space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-extrabold text-foreground">Page Configuration</h2>
-              <p className="text-xs text-muted-foreground">This name will be used to replace variables (e.g. {"{{name}}"}) inside the story text.</p>
+        <div className="space-y-8">
+          <form onSubmit={handleSaveTemplate} className="surface-card p-6 space-y-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-lg font-extrabold text-foreground">Template Information</h2>
+                <p className="text-xs text-muted-foreground">Edit the template name, URL slug, dimensions, page count, and cover URL.</p>
+              </div>
+              <Button type="submit" disabled={isSaving} className="h-10 px-5 font-bold rounded-xl">
+                {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+                Save Information
+              </Button>
             </div>
-            <Button onClick={handleSaveText} disabled={isSaving} className="h-10 px-5 font-bold rounded-xl  hover:shadow-glow-sm transition-all">
-              {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-              Save All Pages
-            </Button>
-          </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {Array.from({ length: template.totalPages }).map((_, i) => {
-              const pageNum = i + 1;
-              return (
-                <div key={pageNum} className="p-4 rounded-xl border border-border bg-muted/10 space-y-3">
-                  <label className="text-sm font-bold text-foreground flex items-center justify-between">
-                    <span>Page {pageNum}</span>
-                  </label>
-                  <textarea
-                    rows={4}
-                    value={pagesText[pageNum] || ""}
-                    onChange={(e) => setPagesText(prev => ({ ...prev, [pageNum]: e.target.value }))}
-                    placeholder={`Enter story text for page ${pageNum}...`}
-                    className="w-full px-3.5 py-3 rounded-xl border border-border bg-white text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all resize-none"
-                  />
-                </div>
-              );
-            })}
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-foreground">Template Name</label>
+                <Input name="name" value={templateForm.name} onChange={handleTemplateChange} required />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-foreground">Slug</label>
+                <Input name="slug" value={templateForm.slug} onChange={handleTemplateChange} required />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-foreground">Width</label>
+                <Input type="number" min="0.01" step="0.01" name="width" value={templateForm.width} onChange={handleTemplateChange} required />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-foreground">Height</label>
+                <Input type="number" min="0.01" step="0.01" name="height" value={templateForm.height} onChange={handleTemplateChange} required />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-foreground">Unit</label>
+                <select name="unit" value={templateForm.unit} onChange={handleTemplateChange} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
+                  <option value="INCH">Inches (in)</option>
+                  <option value="MM">Millimeters (mm)</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-foreground">Total Pages</label>
+                <Input type="number" min="1" step="1" name="totalPages" value={templateForm.totalPages} onChange={handleTemplateChange} required />
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <label className="text-sm font-bold text-foreground">Cover Image URL (optional)</label>
+                <Input type="url" name="coverImage" value={templateForm.coverImage} onChange={handleTemplateChange} placeholder="https://example.com/cover.jpg" />
+              </div>
+            </div>
+          </form>
+
+          <div className="surface-card p-6 space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-extrabold text-foreground">Page Configuration</h2>
+                <p className="text-xs text-muted-foreground">This name will be used to replace variables (e.g. {"{{name}}"}) inside the story text.</p>
+              </div>
+              <Button onClick={handleSaveText} disabled={isSaving} className="h-10 px-5 font-bold rounded-xl  hover:shadow-glow-sm transition-all">
+                {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+                Save All Pages
+              </Button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {Array.from({ length: template.totalPages }).map((_, i) => {
+                const pageNum = i + 1;
+                return (
+                  <div key={pageNum} className="p-4 rounded-xl border border-border bg-muted/10 space-y-3">
+                    <label className="text-sm font-bold text-foreground flex items-center justify-between">
+                      <span>Page {pageNum}</span>
+                    </label>
+                    <textarea
+                      rows={4}
+                      value={pagesText[pageNum] || ""}
+                      onChange={(e) => setPagesText(prev => ({ ...prev, [pageNum]: e.target.value }))}
+                      placeholder={`Enter story text for page ${pageNum}...`}
+                      className="w-full px-3.5 py-3 rounded-xl border border-border bg-white text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all resize-none"
+                    />
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       ) : (

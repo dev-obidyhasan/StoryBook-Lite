@@ -33,11 +33,27 @@ export function TemplateListPage() {
   const fetchTemplates = async () => {
     setIsLoading(true);
     try {
-      // Normal users only see published templates
-      const res = user?.role === "SUPER_ADMIN"
-        ? await templatesService.getTemplates()
-        : await templatesService.getTemplates({ status: "PUBLISHED" });
-      setTemplates(res.data ?? []);
+      // Fetch every page instead of silently stopping at the API's default
+      // page size of 10 templates.
+      const allTemplates: BookTemplate[] = [];
+      const limit = 100;
+      let page = 1;
+      let total = 0;
+
+      do {
+        const res = await templatesService.getTemplates({
+          ...(user?.role === "SUPER_ADMIN" ? {} : { status: "PUBLISHED" as const }),
+          page,
+          limit,
+        });
+        const batch = res.data ?? [];
+        allTemplates.push(...batch);
+        total = res.meta?.total ?? allTemplates.length;
+        if (batch.length === 0) break;
+        page += 1;
+      } while (allTemplates.length < total);
+
+      setTemplates(allTemplates);
     } catch {
       toast.error("Failed to load templates.");
     } finally {
