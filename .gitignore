@@ -13,7 +13,6 @@ build/
 dist/
 
 # Env
-.env
 .env.local
 .env.*.local
 
